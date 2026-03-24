@@ -4,6 +4,7 @@ import { Card, CardTitle, Input, Table } from '../components/ui';
 import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { formatDateTime } from '../lib/utils';
 import { useMemo, useState } from 'react';
+import { Bus, Car, Truck } from 'lucide-react';
 
 export function DashboardPage() {
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -72,6 +73,39 @@ export function DashboardPage() {
           <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
         </div>
       </Card>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <Card className="flex items-center gap-3">
+          <div className="rounded-lg bg-slate-100 p-2 text-slate-700">
+            <Car size={22} />
+          </div>
+          <div>
+            <p className="text-xs uppercase text-slate-500">Carros</p>
+            <p className="text-2xl font-semibold">{String(cards.cars || 0)}</p>
+          </div>
+        </Card>
+
+        <Card className="flex items-center gap-3">
+          <div className="rounded-lg bg-slate-100 p-2 text-slate-700">
+            <Truck size={22} />
+          </div>
+          <div>
+            <p className="text-xs uppercase text-slate-500">Caminhões</p>
+            <p className="text-2xl font-semibold">{String(cards.trucks || 0)}</p>
+          </div>
+        </Card>
+
+        <Card className="flex items-center gap-3">
+          <div className="rounded-lg bg-slate-100 p-2 text-slate-700">
+            <Bus size={22} />
+          </div>
+          <div>
+            <p className="text-xs uppercase text-slate-500">Ônibus</p>
+            <p className="text-2xl font-semibold">{String(cards.buses || 0)}</p>
+          </div>
+        </Card>
+      </div>
+
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
         {Object.entries(cards).map(([k, v]) => (
           <Card key={k}>
