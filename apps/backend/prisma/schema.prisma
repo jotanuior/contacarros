@@ -1,0 +1,299 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  ADMIN
+  OPERADOR
+  AUDITOR
+  VISUALIZADOR
+}
+
+enum CameraDirection {
+  ENTRADA
+  SAIDA
+  INTERNO
+  EXTERNO
+}
+
+enum VehicleCategoryType {
+  CARRO
+  CAMINHAO
+  ONIBUS
+  OUTRO
+  DESCONHECIDO
+}
+
+enum ReadingProcessingStatus {
+  RECEBIDO
+  PROCESSADO
+  PENDENTE_API
+  ERRO
+  DUPLICADO
+}
+
+enum TripStatus {
+  EM_ANDAMENTO
+  CONCLUIDO_OK
+  CONCLUIDO_ATENCAO
+  CANCELADO
+  SEM_SAIDA
+  INCONSISTENTE
+  PENDENTE_VALIDACAO
+}
+
+enum SeverityLevel {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+enum AlertType {
+  SEM_SAIDA
+  CANCELADO
+  ATENCAO_ROTA
+  INCONSISTENTE
+  LEITURA_BAIXA_CONFIANCA
+  FALHA_API
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  name      RoleName @unique
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model User {
+  id              String              @id @default(cuid())
+  name            String
+  email           String              @unique
+  passwordHash    String
+  isActive        Boolean             @default(true)
+  roleId          String
+  role            Role                @relation(fields: [roleId], references: [id])
+  lastLoginAt     DateTime?
+  refreshTokens   RefreshToken[]
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  auditLogs       AuditLog[]
+  heavyChecks     HeavyVehicleCheck[]
+  resolvedAlerts  Alert[]             @relation("ResolvedAlerts")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Location {
+  id          String      @id @default(cuid())
+  name        String
+  code        String      @unique
+  description String?
+  active      Boolean     @default(true)
+  cameras     Camera[]
+  readings    Reading[]
+  startTrips  Trip[]      @relation("TripStartLocation")
+  endTrips    Trip[]      @relation("TripEndLocation")
+  routeFrom   RouteRule[] @relation("RouteOrigin")
+  routeTo     RouteRule[] @relation("RouteDestination")
+  tripEvents  TripEvent[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model Camera {
+  id          String          @id @default(cuid())
+  name        String
+  code        String          @unique
+  locationId  String
+  location    Location        @relation(fields: [locationId], references: [id])
+  externalRef String?
+  direction   CameraDirection?
+  active      Boolean         @default(true)
+  readings    Reading[]
+  tripEvents  TripEvent[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model Vehicle {
+  id            String              @id @default(cuid())
+  plate         String              @unique
+  brand         String?
+  model         String?
+  year          String?
+  segment       String?
+  subSegment    String?
+  fuel          String?
+  city          String?
+  state         String?
+  categoryType  VehicleCategoryType @default(DESCONHECIDO)
+  lastApiSyncAt DateTime?
+  apiRawData    Json?
+  readings      Reading[]
+  trips         Trip[]
+  heavyChecks   HeavyVehicleCheck[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+}
+
+model Reading {
+  id               String                  @id @default(cuid())
+  plate            String
+  normalizedPlate  String
+  vehicleId        String?
+  vehicle          Vehicle?                @relation(fields: [vehicleId], references: [id])
+  cameraId         String
+  camera           Camera                  @relation(fields: [cameraId], references: [id])
+  localId          String
+  location         Location                @relation(fields: [localId], references: [id])
+  capturedAt       DateTime
+  confidence       Float?
+  imageUrl         String?
+  rawPayload       Json?
+  isDuplicate      Boolean                 @default(false)
+  processingStatus ReadingProcessingStatus @default(RECEBIDO)
+  tripEvents       TripEvent[]
+  alerts           Alert[]
+  heavyChecks      HeavyVehicleCheck[]
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@index([normalizedPlate, capturedAt])
+  @@index([cameraId, capturedAt])
+}
+
+model Trip {
+  id             String       @id @default(cuid())
+  plate          String
+  vehicleId      String?
+  vehicle        Vehicle?     @relation(fields: [vehicleId], references: [id])
+  startReadingId String
+  endReadingId   String?
+  startLocalId   String
+  endLocalId     String?
+  startLocal     Location     @relation("TripStartLocation", fields: [startLocalId], references: [id])
+  endLocal       Location?    @relation("TripEndLocation", fields: [endLocalId], references: [id])
+  startedAt      DateTime
+  endedAt        DateTime?
+  currentStatus  TripStatus   @default(EM_ANDAMENTO)
+  severity       SeverityLevel @default(BAIXA)
+  conclusionType String?
+  expectedUntil  DateTime?
+  closedAt       DateTime?
+  notes          String?
+  tripEvents     TripEvent[]
+  alerts         Alert[]
+  heavyChecks    HeavyVehicleCheck[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([plate, currentStatus])
+}
+
+model TripEvent {
+  id        String   @id @default(cuid())
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id])
+  readingId String
+  reading   Reading  @relation(fields: [readingId], references: [id])
+  localId   String
+  location  Location @relation(fields: [localId], references: [id])
+  cameraId  String
+  camera    Camera   @relation(fields: [cameraId], references: [id])
+  eventAt   DateTime
+  sequence  Int
+  createdAt DateTime @default(now())
+}
+
+model RouteRule {
+  id                String        @id @default(cuid())
+  originLocalId     String
+  destinationLocalId String
+  originLocal       Location      @relation("RouteOrigin", fields: [originLocalId], references: [id])
+  destinationLocal  Location      @relation("RouteDestination", fields: [destinationLocalId], references: [id])
+  resultType        TripStatus
+  severity          SeverityLevel @default(MEDIA)
+  active            Boolean       @default(true)
+  description       String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([originLocalId, destinationLocalId])
+}
+
+model HeavyVehicleCheck {
+  id              String   @id @default(cuid())
+  tripId          String?
+  trip            Trip?    @relation(fields: [tripId], references: [id])
+  readingId       String?
+  reading         Reading? @relation(fields: [readingId], references: [id])
+  vehicleId       String
+  vehicle         Vehicle  @relation(fields: [vehicleId], references: [id])
+  checkedByUserId String
+  checkedByUser   User     @relation(fields: [checkedByUserId], references: [id])
+  checkedAt       DateTime
+  subtype         String
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Alert {
+  id               String        @id @default(cuid())
+  type             AlertType
+  plate            String
+  tripId           String?
+  trip             Trip?         @relation(fields: [tripId], references: [id])
+  readingId        String?
+  reading          Reading?      @relation(fields: [readingId], references: [id])
+  severity         SeverityLevel @default(MEDIA)
+  message          String
+  isResolved       Boolean       @default(false)
+  resolvedByUserId String?
+  resolvedByUser   User?         @relation("ResolvedAlerts", fields: [resolvedByUserId], references: [id])
+  resolvedAt       DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([type, createdAt])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String
+  entityType  String
+  entityId    String?
+  description String
+  beforeData  Json?
+  afterData   Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([action, createdAt])
+}
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

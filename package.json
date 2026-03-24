@@ -1,0 +1,19 @@
+{
+  "name": "contacarros",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/backend",
+    "apps/frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm --prefix apps/backend run start:dev",
+    "dev:frontend": "npm --prefix apps/frontend run dev",
+    "build": "npm --prefix apps/backend run build && npm --prefix apps/frontend run build",
+    "prisma:generate": "npm --prefix apps/backend run prisma:generate",
+    "prisma:migrate": "npm --prefix apps/backend run prisma:migrate",
+    "prisma:seed": "npm --prefix apps/backend run prisma:seed",
+    "deploy:prepare": "bash ./scripts/deploy-host-nginx.sh",
+    "deploy": "bash ./scripts/deploy.sh"
+  }
+}

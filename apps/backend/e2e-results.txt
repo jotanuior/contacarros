@@ -1,0 +1,47 @@
+
+> backend@0.0.1 test:e2e
+> jest --config ./test/jest-e2e.json
+
+FAIL test/app.e2e-spec.ts
+  ● AppController (e2e) › / (GET)
+
+    expected 200 "OK", got 404 "Not Found"
+
+      20 |     return request(app.getHttpServer())
+      21 |       .get('/')
+    > 22 |       .expect(200)
+         |        ^
+      23 |       .expect('Hello World!');
+      24 |   });
+      25 | });
+
+      at Object.<anonymous> (app.e2e-spec.ts:22:8)
+      ----
+      at Test._assertStatus (../node_modules/supertest/lib/test.js:309:14)
+      at ../node_modules/supertest/lib/test.js:365:13
+      at Test._assertFunction (../node_modules/supertest/lib/test.js:342:13)
+      at Test.assert (../node_modules/supertest/lib/test.js:195:23)
+      at localAssert (../node_modules/supertest/lib/test.js:138:14)
+      at Server.<anonymous> (../node_modules/supertest/lib/test.js:152:11)
+
+{"level":30,"time":1774304619342,"pid":24262,"hostname":"MacBook-Pro-de-claudio-2.local","req":{"id":1,"method":"GET","url":"/","query":{},"params":{},"headers":{"host":"127.0.0.1:62335","accept-encoding":"gzip, deflate","connection":"close"},"remoteAddress":"::ffff:127.0.0.1","remotePort":62336},"res":{"statusCode":404,"headers":{"x-powered-by":"Express","content-type":"application/json; charset=utf-8","content-length":"63","etag":"W/\"3f-BunLb98SCK6azHy0RO08GDnFBek\""}},"responseTime":4,"msg":"request completed"}
+FAIL test/auth.e2e-spec.ts
+  ● Test suite failed to run
+
+    [96mtest/auth.e2e-spec.ts[0m:[93m685[0m:[93m1[0m - [91merror[0m[90m TS1128: [0mDeclaration or statement expected.
+
+    [7m685[0m });
+    [7m   [0m [91m~[0m
+    [96mtest/auth.e2e-spec.ts[0m:[93m685[0m:[93m2[0m - [91merror[0m[90m TS1128: [0mDeclaration or statement expected.
+
+    [7m685[0m });
+    [7m   [0m [91m ~[0m
+
+Test Suites: 2 failed, 2 total
+Tests:       1 failed, 1 total
+Snapshots:   0 total
+Time:        1.29 s
+Ran all test suites.
+Jest did not exit one second after the test run has completed.
+
+'This usually means that there are asynchronous operations that weren't stopped in your tests. Consider running Jest with `--detectOpenHandles` to troubleshoot this issue.

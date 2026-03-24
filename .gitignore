@@ -1,0 +1,48 @@
+# Dependências
+node_modules/
+.npm
+
+# Build
+dist/
+build/
+.next/
+out/
+
+# Ambiente e segredos
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Deploy state
+.deploy/
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime / OS
+.DS_Store
+Thumbs.db
+*.pem
+
+# Editor
+.vscode/settings.json
+.vscode/launch.json
+.idea/
+*.swp
+*.swo
+
+# Testes / cobertura
+coverage/
+.nyc_output/
+
+# Prisma generated client (regenerado no build)
+apps/backend/node_modules/.prisma/
+
+# Backups locais
+deploy/backups/
