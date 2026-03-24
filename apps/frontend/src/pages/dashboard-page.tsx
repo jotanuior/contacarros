@@ -4,7 +4,7 @@ import { Card, CardTitle, Input, Table } from '../components/ui';
 import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { formatDateTime } from '../lib/utils';
 import { useMemo, useState } from 'react';
-import { Bus, Car, Truck } from 'lucide-react';
+import { Bus, Car, Truck, X } from 'lucide-react';
 
 type QuantitativeRow = {
   tipo: string;
@@ -131,29 +131,6 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {selectedSubtypeType && (
-        <Card>
-          <CardTitle>Subcategorias de {selectedTipoLabel}</CardTitle>
-          <Table>
-            <thead>
-              <tr><th>Subcategoria</th><th>Quantidade</th></tr>
-            </thead>
-            <tbody>
-              {subtypeRows.length ? subtypeRows.map((row) => (
-                <tr key={`${row.tipo}-${row.subtipo}`} className="border-t border-slate-100">
-                  <td>{row.subtipo}</td>
-                  <td>{row.quantidade}</td>
-                </tr>
-              )) : (
-                <tr className="border-t border-slate-100">
-                  <td colSpan={2}>Sem dados de subcategoria no período selecionado.</td>
-                </tr>
-              )}
-            </tbody>
-          </Table>
-        </Card>
-      )}
-
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
         {Object.entries(cards).map(([k, v]) => (
           <Card key={k}>
@@ -204,6 +181,46 @@ export function DashboardPage() {
           </tbody>
         </Table>
       </Card>
+
+      {selectedSubtypeType && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-slate-900/30"
+            onClick={() => setSelectedSubtypeType(null)}
+          />
+          <aside className="fixed right-0 top-0 z-50 h-full w-full max-w-md border-l border-slate-200 bg-white p-4 shadow-xl">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Subcategorias de {selectedTipoLabel}</h2>
+              <button
+                type="button"
+                onClick={() => setSelectedSubtypeType(null)}
+                className="rounded-md p-1 text-slate-600 hover:bg-slate-100"
+                aria-label="Fechar painel"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <Table>
+              <thead>
+                <tr><th>Subcategoria</th><th>Quantidade</th></tr>
+              </thead>
+              <tbody>
+                {subtypeRows.length ? subtypeRows.map((row) => (
+                  <tr key={`${row.tipo}-${row.subtipo}`} className="border-t border-slate-100">
+                    <td>{row.subtipo}</td>
+                    <td>{row.quantidade}</td>
+                  </tr>
+                )) : (
+                  <tr className="border-t border-slate-100">
+                    <td colSpan={2}>Sem dados de subcategoria no período selecionado.</td>
+                  </tr>
+                )}
+              </tbody>
+            </Table>
+          </aside>
+        </>
+      )}
     </div>
   );
 }
