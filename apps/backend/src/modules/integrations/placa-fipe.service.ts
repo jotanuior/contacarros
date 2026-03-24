@@ -43,10 +43,18 @@ export class PlacaFipeService {
     }
 
     try {
-      const response = await axios.get(`${baseUrl}/placa/${normalizedPlate}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        timeout: 12000,
-      });
+      const endpoint = `${baseUrl.replace(/\/+$/g, '')}/getplaca`;
+      const response = await axios.post(
+        endpoint,
+        {
+          placa: normalizedPlate,
+          token,
+        },
+        {
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 12000,
+        },
+      );
 
       await this.auditLogs.create({
         action: 'PLACA_FIPE_CONSULTA',
