@@ -99,7 +99,7 @@ server {
     }
 
     location ${FRONTEND_LOCATION} {
-        proxy_pass http://127.0.0.1:${FRONTEND_PORT}/;
+        proxy_pass http://127.0.0.1:${FRONTEND_PORT};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
