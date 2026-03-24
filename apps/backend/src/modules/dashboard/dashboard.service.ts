@@ -124,11 +124,24 @@ export class DashboardService {
     let validatedTripIds = new Set<string>();
 
     if (requireHeavyValidation) {
+      const candidateHeavyVehicleIds = Array.from(
+        new Set(
+          candidateTrips
+            .map((trip) => {
+              const category = this.getTripCategory(trip);
+              if (!this.isHeavyType(category)) return null;
+              return trip.vehicleId;
+            })
+            .filter((value): value is string => Boolean(value)),
+        ),
+      );
+
       const checks = await this.prisma.heavyVehicleCheck.findMany({
         where: {
           OR: [
             { checkedAt: { gte: start, lte: end } },
             { tripId: { in: candidateTrips.map((trip) => trip.id) } },
+            { vehicleId: { in: candidateHeavyVehicleIds } },
           ],
         },
         select: {
@@ -157,6 +170,17 @@ export class DashboardService {
 
       const unresolvedChecks = checks.filter((item) => !item.tripId && !item.readingId);
       if (unresolvedChecks.length) {
+        const validatedVehicleIds = new Set(unresolvedChecks.map((item) => item.vehicleId));
+
+        for (const trip of candidateTrips) {
+          if (!trip.vehicleId) continue;
+          const category = this.getTripCategory(trip);
+          if (!this.isHeavyType(category)) continue;
+          if (validatedVehicleIds.has(trip.vehicleId)) {
+            validatedTripIds.add(trip.id);
+          }
+        }
+
         for (const check of unresolvedChecks) {
           const matchingTrip = candidateTrips.find((trip) => {
             if (trip.vehicleId !== check.vehicleId) return false;
