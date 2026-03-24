@@ -178,7 +178,15 @@ export class DashboardService {
     const filteredTrips = requireHeavyValidation
       ? candidateTrips.filter((trip) => {
           const category = this.getTripCategory(trip);
-          return !this.isHeavyType(category) || validatedTripIds.has(trip.id);
+          if (!this.isHeavyType(category)) {
+            return true;
+          }
+
+          if (validatedTripIds.has(trip.id)) {
+            return true;
+          }
+
+          return trip.currentStatus !== 'PENDENTE_VALIDACAO';
         })
       : candidateTrips;
 
