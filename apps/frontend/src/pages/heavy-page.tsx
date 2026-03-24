@@ -4,15 +4,90 @@ import { Button, Card, Input, Select, Table } from '../components/ui';
 import { useState } from 'react';
 import { formatDateTime } from '../lib/utils';
 
+type HeavySubtypeOptions = {
+  truckSubtypes: string[];
+  busSubtypes: string[];
+};
+
+type HeavyPendingItem = {
+  id: string;
+  vehicleId: string;
+  capturedAt: string;
+  normalizedPlate: string;
+  location?: { name: string };
+  vehicle?: { model?: string; categoryType?: string };
+};
+
+type RowForm = {
+  subtype: string;
+  notes: string;
+};
+
 export function HeavyPage() {
   const queryClient = useQueryClient();
-  const [notes, setNotes] = useState('');
-  const [subtype, setSubtype] = useState('Caminhão pequeno');
-  const { data } = useQuery({ queryKey: ['heavy-pending'], queryFn: async () => (await api.get('/heavy-checks/pending')).data });
+  const [formByReadingId, setFormByReadingId] = useState<Record<string, RowForm>>({});
+
+  const { data } = useQuery<HeavyPendingItem[]>({
+    queryKey: ['heavy-pending'],
+    queryFn: async () => (await api.get('/heavy-checks/pending')).data,
+  });
+
+  const { data: subtypeOptions } = useQuery<HeavySubtypeOptions>({
+    queryKey: ['heavy-subtypes'],
+    queryFn: async () => (await api.get('/heavy-checks/subtypes')).data,
+  });
+
+  function getSubtypeOptionsByCategory(categoryType?: string) {
+    if (categoryType === 'ONIBUS') {
+      return subtypeOptions?.busSubtypes || [];
+    }
+
+    if (categoryType === 'CAMINHAO') {
+      return subtypeOptions?.truckSubtypes || [];
+    }
+
+    return [...(subtypeOptions?.truckSubtypes || []), ...(subtypeOptions?.busSubtypes || [])];
+  }
+
+  function getDefaultSubtype(item: HeavyPendingItem) {
+    return getSubtypeOptionsByCategory(item.vehicle?.categoryType)[0] || '';
+  }
+
+  function getRowForm(item: HeavyPendingItem): RowForm {
+    return formByReadingId[item.id] || {
+      subtype: getDefaultSubtype(item),
+      notes: '',
+    };
+  }
+
+  function updateRowForm(item: HeavyPendingItem, patch: Partial<RowForm>) {
+    setFormByReadingId((current) => {
+      const previous = current[item.id] || getRowForm(item);
+      return {
+        ...current,
+        [item.id]: {
+          ...previous,
+          ...patch,
+        },
+      };
+    });
+  }
 
   const mutation = useMutation({
     mutationFn: async (payload: any) => api.post('/heavy-checks', payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['heavy-pending'] }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['heavy-pending'] });
+      if (variables?.readingId) {
+        setFormByReadingId((current) => {
+          const next = { ...current };
+          delete next[variables.readingId];
+          return next;
+        });
+      }
+    },
+    onError: () => {
+      window.alert('Falha ao registrar checagem. Verifique os dados e tente novamente.');
+    },
   });
 
   return (
@@ -22,7 +97,11 @@ export function HeavyPage() {
         <Table>
           <thead><tr><th>Horário</th><th>Placa</th><th>Modelo</th><th>Local</th><th>Tipo</th><th>Subtipo</th><th>Ação</th></tr></thead>
           <tbody>
-            {(data || []).map((item: any) => (
+            {(data || []).map((item) => {
+              const rowForm = getRowForm(item);
+              const options = getSubtypeOptionsByCategory(item.vehicle?.categoryType);
+
+              return (
               <tr key={item.id} className="border-t border-slate-100">
                 <td>{formatDateTime(item.capturedAt)}</td>
                 <td>{item.normalizedPlate}</td>
@@ -30,16 +109,22 @@ export function HeavyPage() {
                 <td>{item.location?.name}</td>
                 <td>{item.vehicle?.categoryType}</td>
                 <td>
-                  <Select value={subtype} onChange={(e) => setSubtype(e.target.value)}>
-                    <option>Caminhão pequeno</option><option>Caminhão 3/4</option><option>Caminhão toco</option><option>Caminhão truck</option><option>Carreta</option><option>Bitrem</option><option>Rodotrem</option><option>Caminhão grande</option><option>Micro-ônibus</option><option>Ônibus urbano</option><option>Ônibus rodoviário</option><option>Ônibus fretado</option>
+                  <Select value={rowForm.subtype} onChange={(e) => updateRowForm(item, { subtype: e.target.value })}>
+                    {options.map((option) => <option key={option} value={option}>{option}</option>)}
                   </Select>
-                  <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Observação" className="mt-1" />
+                  <Input value={rowForm.notes} onChange={(e) => updateRowForm(item, { notes: e.target.value })} placeholder="Observação" className="mt-1" />
                 </td>
                 <td>
-                  <Button onClick={() => mutation.mutate({ vehicleId: item.vehicleId, readingId: item.id, subtype, notes })}>Checado</Button>
+                  <Button
+                    disabled={!rowForm.subtype || mutation.isPending}
+                    onClick={() => mutation.mutate({ vehicleId: item.vehicleId, readingId: item.id, subtype: rowForm.subtype, notes: rowForm.notes })}
+                  >
+                    Checado
+                  </Button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </Table>
       </Card>

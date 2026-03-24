@@ -11,7 +11,7 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('daily')
-  daily(@Query('date') date?: string) {
-    return this.dashboardService.getDaily(date);
+  daily(@Query('date') date?: string, @Query('from') from?: string, @Query('to') to?: string) {
+    return this.dashboardService.getDaily({ date, from, to });
   }
 }

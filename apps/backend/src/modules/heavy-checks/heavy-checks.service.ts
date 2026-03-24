@@ -1,15 +1,64 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
+import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class HeavyChecksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settingsService: SettingsService,
+  ) {}
+
+  private readonly defaultTruckSubtypes = [
+    'Caminhão pequeno',
+    'Caminhão 3/4',
+    'Caminhão toco',
+    'Caminhão truck',
+    'Carreta',
+    'Bitrem',
+    'Rodotrem',
+    'Caminhão grande',
+  ];
+
+  private readonly defaultBusSubtypes = [
+    'Micro-ônibus',
+    'Ônibus urbano',
+    'Ônibus rodoviário',
+    'Ônibus fretado',
+  ];
+
+  private parseSubtypes(rawValue: string): string[] {
+    const unique = new Set(
+      rawValue
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
+
+    return Array.from(unique);
+  }
+
+  async subtypes() {
+    const truckRaw = await this.settingsService.getValue('TRUCK_SUBTYPES', this.defaultTruckSubtypes.join(','));
+    const busRaw = await this.settingsService.getValue('BUS_SUBTYPES', this.defaultBusSubtypes.join(','));
+
+    const truckSubtypes = this.parseSubtypes(truckRaw);
+    const busSubtypes = this.parseSubtypes(busRaw);
+
+    return {
+      truckSubtypes: truckSubtypes.length ? truckSubtypes : this.defaultTruckSubtypes,
+      busSubtypes: busSubtypes.length ? busSubtypes : this.defaultBusSubtypes,
+    };
+  }
 
   pending() {
     return this.prisma.reading.findMany({
       where: {
         vehicle: {
           categoryType: { in: ['CAMINHAO', 'ONIBUS'] },
+        },
+        heavyChecks: {
+          none: {},
         },
       },
       include: {

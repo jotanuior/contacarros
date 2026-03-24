@@ -22,6 +22,11 @@ export class HeavyChecksController {
     return this.heavyChecksService.history();
   }
 
+  @Get('subtypes')
+  subtypes() {
+    return this.heavyChecksService.subtypes();
+  }
+
   @Post()
   check(
     @Body() body: { tripId?: string; readingId?: string; vehicleId: string; subtype: string; notes?: string },

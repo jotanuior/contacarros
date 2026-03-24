@@ -5,12 +5,48 @@ import { PrismaService } from '../../common/prisma.service';
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getDaily(date?: string) {
-    const target = date ? new Date(date) : new Date();
-    const start = new Date(target);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(target);
-    end.setHours(23, 59, 59, 999);
+  private parseDateBoundary(value: string, isEnd: boolean): Date | null {
+    if (!value) return null;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const parsed = new Date(`${value}T00:00:00.000Z`);
+      if (Number.isNaN(parsed.getTime())) return null;
+      if (isEnd) parsed.setUTCHours(23, 59, 59, 999);
+      return parsed;
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed;
+  }
+
+  async getDaily(params?: { date?: string; from?: string; to?: string }) {
+    const from = params?.from ? this.parseDateBoundary(params.from, false) : null;
+    const to = params?.to ? this.parseDateBoundary(params.to, true) : null;
+
+    let start: Date;
+    let end: Date;
+
+    if (from || to) {
+      const now = new Date();
+      start = from || new Date(to || now);
+      end = to || new Date(from || now);
+
+      if (!from) start.setUTCHours(0, 0, 0, 0);
+      if (!to) end.setUTCHours(23, 59, 59, 999);
+    } else {
+      const target = params?.date ? new Date(params.date) : new Date();
+      start = new Date(target);
+      start.setHours(0, 0, 0, 0);
+      end = new Date(target);
+      end.setHours(23, 59, 59, 999);
+    }
+
+    if (start > end) {
+      const temp = start;
+      start = end;
+      end = temp;
+    }
 
     const [totalReadings, totalTrips, tripsByStatus, vehicleByCategory, readingsByHour, readingsByLocal, lastReadings, heavyPending, openTrips, lastAlerts] = await Promise.all([
       this.prisma.reading.count({ where: { capturedAt: { gte: start, lte: end } } }),
@@ -25,7 +61,7 @@ export class DashboardService {
         ORDER BY 1
       `,
       this.prisma.reading.groupBy({ by: ['localId'], _count: true, where: { capturedAt: { gte: start, lte: end } } }),
-      this.prisma.reading.findMany({ include: { vehicle: true, location: true, camera: true }, orderBy: { capturedAt: 'desc' }, take: 20 }),
+      this.prisma.reading.findMany({ where: { capturedAt: { gte: start, lte: end } }, include: { vehicle: true, location: true, camera: true }, orderBy: { capturedAt: 'desc' }, take: 20 }),
       this.prisma.reading.findMany({
         where: { vehicle: { categoryType: { in: ['CAMINHAO', 'ONIBUS'] } } },
         include: { vehicle: true, location: true },

@@ -18,6 +18,9 @@ export function SettingsPage() {
   const [token, setToken] = useState('');
   const [enabled, setEnabled] = useState('true');
   const [cacheMinutes, setCacheMinutes] = useState('1440');
+  const [truckSubtypes, setTruckSubtypes] = useState('');
+  const [busSubtypes, setBusSubtypes] = useState('');
+  const [editableRows, setEditableRows] = useState<Record<string, { value: string; description: string }>>({});
 
   const { data } = useQuery<SettingItem[]>({ queryKey: ['settings'], queryFn: async () => (await api.get('/settings')).data });
 
@@ -30,6 +33,18 @@ export function SettingsPage() {
     setToken(byKey('PLACA_FIPE_TOKEN'));
     setEnabled(byKey('PLACA_FIPE_ENABLED') || 'true');
     setCacheMinutes(byKey('PLACA_FIPE_CACHE_MINUTES') || '1440');
+    setTruckSubtypes(byKey('TRUCK_SUBTYPES'));
+    setBusSubtypes(byKey('BUS_SUBTYPES'));
+
+    setEditableRows(
+      data.reduce<Record<string, { value: string; description: string }>>((acc, item) => {
+        acc[item.id] = {
+          value: item.value || '',
+          description: item.description || '',
+        };
+        return acc;
+      }, {}),
+    );
   }, [data]);
 
   const mutation = useMutation({
@@ -69,12 +84,43 @@ export function SettingsPage() {
     },
   });
 
-  function renderSettingValue(item: SettingItem) {
-    if (item.key === 'PLACA_FIPE_TOKEN' && item.value) {
-      return '••••••••••••••••';
-    }
+  const subtypeMutation = useMutation({
+    mutationFn: async () =>
+      Promise.all([
+        api.post('/settings', {
+          key: 'TRUCK_SUBTYPES',
+          value: truckSubtypes,
+          description: 'Subtipos de caminhão (separados por vírgula)',
+        }),
+        api.post('/settings', {
+          key: 'BUS_SUBTYPES',
+          value: busSubtypes,
+          description: 'Subtipos de ônibus (separados por vírgula)',
+        }),
+      ]),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['heavy-subtypes'] });
+    },
+  });
 
-    return item.value || '-';
+  const rowMutation = useMutation({
+    mutationFn: async (payload: { key: string; value: string; description: string }) => api.post('/settings', payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['heavy-subtypes'] });
+    },
+  });
+
+  function updateRow(itemId: string, patch: Partial<{ value: string; description: string }>) {
+    setEditableRows((current) => ({
+      ...current,
+      [itemId]: {
+        value: current[itemId]?.value ?? '',
+        description: current[itemId]?.description ?? '',
+        ...patch,
+      },
+    }));
   }
 
   return (
@@ -106,6 +152,22 @@ export function SettingsPage() {
         </div>
       </Card>
 
+      <Card className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-800">Subtipos de veículos pesados</h2>
+          <p className="text-sm text-slate-600">Configure os subtipos separados por vírgula (ex: Caminhão pequeno,Caminhão truck,Carreta).</p>
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          <Input placeholder="Subtipos de caminhão" value={truckSubtypes} onChange={(e) => setTruckSubtypes(e.target.value)} />
+          <Input placeholder="Subtipos de ônibus" value={busSubtypes} onChange={(e) => setBusSubtypes(e.target.value)} />
+        </div>
+        <div>
+          <Button onClick={() => subtypeMutation.mutate()} disabled={subtypeMutation.isPending}>
+            Salvar subtipos
+          </Button>
+        </div>
+      </Card>
+
       <Card className="flex gap-2">
         <Input placeholder="Chave" value={key} onChange={(e) => setKey(e.target.value)} />
         <Input placeholder="Valor" value={value} onChange={(e) => setValue(e.target.value)} />
@@ -119,14 +181,37 @@ export function SettingsPage() {
               <th>Chave</th>
               <th>Valor</th>
               <th>Descrição</th>
+              <th>Ação</th>
             </tr>
           </thead>
           <tbody>
             {(data || []).map((item) => (
               <tr key={item.id} className="border-t border-slate-100">
                 <td>{item.key}</td>
-                <td>{renderSettingValue(item)}</td>
-                <td>{item.description || '-'}</td>
+                <td>
+                  <Input
+                    value={editableRows[item.id]?.value ?? ''}
+                    onChange={(e) => updateRow(item.id, { value: e.target.value })}
+                  />
+                </td>
+                <td>
+                  <Input
+                    value={editableRows[item.id]?.description ?? ''}
+                    onChange={(e) => updateRow(item.id, { description: e.target.value })}
+                  />
+                </td>
+                <td>
+                  <Button
+                    disabled={rowMutation.isPending}
+                    onClick={() => rowMutation.mutate({
+                      key: item.key,
+                      value: editableRows[item.id]?.value ?? '',
+                      description: editableRows[item.id]?.description ?? '',
+                    })}
+                  >
+                    Salvar
+                  </Button>
+                </td>
               </tr>
             ))}
           </tbody>
