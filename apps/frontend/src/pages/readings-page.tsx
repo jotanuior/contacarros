@@ -6,11 +6,24 @@ import { formatDateTime } from '../lib/utils';
 
 export function ReadingsPage() {
   const [plate, setPlate] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['readings', plate, page],
-    queryFn: async () => (await api.get('/lpr/readings', { params: { plate: plate || undefined, page, limit: 20 } })).data,
+    queryKey: ['readings', plate, from, to, page],
+    queryFn: async () =>
+      (
+        await api.get('/lpr/readings', {
+          params: {
+            plate: plate || undefined,
+            from: from ? new Date(from).toISOString() : undefined,
+            to: to ? new Date(to).toISOString() : undefined,
+            page,
+            limit: 20,
+          },
+        })
+      ).data,
   });
 
   const rows: any[] = data?.data ?? [];
@@ -21,6 +34,8 @@ export function ReadingsPage() {
       <h1 className="text-xl font-semibold">Leituras</h1>
       <Card className="flex gap-2">
         <Input placeholder="Filtrar placa" value={plate} onChange={(e) => { setPlate(e.target.value); setPage(1); }} />
+        <Input type="datetime-local" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
+        <Input type="datetime-local" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
       </Card>
       <Card>
         {isLoading ? <p>Carregando...</p> : (

@@ -160,11 +160,18 @@ export class ReadingsService {
   ) {
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 20;
+    const capturedAtFilter: Prisma.DateTimeFilter | undefined = filters.from || filters.to
+      ? {
+          ...(filters.from ? { gte: filters.from } : {}),
+          ...(filters.to ? { lte: filters.to } : {}),
+        }
+      : undefined;
+
     const where: Prisma.ReadingWhereInput = {
       normalizedPlate: filters.plate ? { contains: filters.plate.toUpperCase() } : undefined,
       localId: filters.localId,
       cameraId: filters.cameraId,
-      capturedAt: filters.from || filters.to ? { gte: filters.from, lte: filters.to } : undefined,
+      capturedAt: capturedAtFilter,
       confidence: filters.lowConfidence ? { lt: 0.8 } : undefined,
     };
     const [data, total] = await Promise.all([
