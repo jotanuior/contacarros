@@ -30,7 +30,7 @@ export class HeavyChecksService {
   private parseSubtypes(rawValue: string): string[] {
     const unique = new Set(
       rawValue
-        .split(',')
+        .split(/[;,\n\r]+/)
         .map((item) => item.trim())
         .filter(Boolean),
     );

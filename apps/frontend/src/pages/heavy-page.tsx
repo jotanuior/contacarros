@@ -100,6 +100,7 @@ export function HeavyPage() {
             {(data || []).map((item) => {
               const rowForm = getRowForm(item);
               const options = getSubtypeOptionsByCategory(item.vehicle?.categoryType);
+              const effectiveSubtype = options.includes(rowForm.subtype) ? rowForm.subtype : (options[0] || '');
 
               return (
               <tr key={item.id} className="border-t border-slate-100">
@@ -109,15 +110,15 @@ export function HeavyPage() {
                 <td>{item.location?.name}</td>
                 <td>{item.vehicle?.categoryType}</td>
                 <td>
-                  <Select value={rowForm.subtype} onChange={(e) => updateRowForm(item, { subtype: e.target.value })}>
+                  <Select value={effectiveSubtype} onChange={(e) => updateRowForm(item, { subtype: e.target.value })}>
                     {options.map((option) => <option key={option} value={option}>{option}</option>)}
                   </Select>
                   <Input value={rowForm.notes} onChange={(e) => updateRowForm(item, { notes: e.target.value })} placeholder="Observação" className="mt-1" />
                 </td>
                 <td>
                   <Button
-                    disabled={!rowForm.subtype || mutation.isPending}
-                    onClick={() => mutation.mutate({ vehicleId: item.vehicleId, readingId: item.id, subtype: rowForm.subtype, notes: rowForm.notes })}
+                    disabled={!effectiveSubtype || mutation.isPending}
+                    onClick={() => mutation.mutate({ vehicleId: item.vehicleId, readingId: item.id, subtype: effectiveSubtype, notes: rowForm.notes })}
                   >
                     Checado
                   </Button>
