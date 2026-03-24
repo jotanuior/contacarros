@@ -30,8 +30,12 @@ export class PlacaFipeService {
       return cachedVehicle.apiRawData;
     }
 
-    const baseUrl = process.env.PLACA_FIPE_BASE_URL;
-    const token = process.env.PLACA_FIPE_TOKEN;
+    const baseUrl = (
+      await this.settingsService.getValue('PLACA_FIPE_BASE_URL', process.env.PLACA_FIPE_BASE_URL || '')
+    ).trim();
+    const token = (
+      await this.settingsService.getValue('PLACA_FIPE_TOKEN', process.env.PLACA_FIPE_TOKEN || '')
+    ).trim();
 
     if (!baseUrl || !token) {
       this.logger.warn('Integração Placa Fipe não configurada em ambiente');
