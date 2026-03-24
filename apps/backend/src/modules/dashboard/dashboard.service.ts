@@ -76,20 +76,17 @@ export class DashboardService {
 
     const tripWhere = await this.buildTripWhere(start, end);
 
-    const [totalReadings, totalTrips, tripsByStatus, vehicleByCategory, readingsByHour, readingsByLocal, lastReadings, heavyPending, openTrips, lastAlerts] = await Promise.all([
-      this.prisma.reading.count({ where: { capturedAt: { gte: start, lte: end } } }),
+    const [totalTrips, tripsByStatus, vehicleByCategory, tripsByLocal, lastTrips, heavyPending, openTrips, lastAlerts, tripsForHour] = await Promise.all([
       this.prisma.trip.count({ where: tripWhere }),
       this.prisma.trip.groupBy({ by: ['currentStatus'], _count: true, where: tripWhere }),
-      this.prisma.reading.groupBy({ by: ['vehicleId'], _count: true, where: { capturedAt: { gte: start, lte: end } } }),
-      this.prisma.$queryRaw<Array<{ hour: number; total: number }>>`
-        SELECT EXTRACT(HOUR FROM "capturedAt")::int as hour, COUNT(*)::int as total
-        FROM "Reading"
-        WHERE "capturedAt" BETWEEN ${start} AND ${end}
-        GROUP BY 1
-        ORDER BY 1
-      `,
-      this.prisma.reading.groupBy({ by: ['localId'], _count: true, where: { capturedAt: { gte: start, lte: end } } }),
-      this.prisma.reading.findMany({ where: { capturedAt: { gte: start, lte: end } }, include: { vehicle: true, location: true, camera: true }, orderBy: { capturedAt: 'desc' }, take: 20 }),
+      this.prisma.trip.groupBy({ by: ['vehicleId'], _count: true, where: tripWhere }),
+      this.prisma.trip.groupBy({ by: ['startLocalId'], _count: true, where: tripWhere }),
+      this.prisma.trip.findMany({
+        where: tripWhere,
+        include: { vehicle: true, startLocal: true, endLocal: true },
+        orderBy: { startedAt: 'desc' },
+        take: 20,
+      }),
       this.prisma.reading.findMany({
         where: { vehicle: { categoryType: { in: ['CAMINHAO', 'ONIBUS'] } } },
         include: { vehicle: true, location: true },
@@ -98,7 +95,17 @@ export class DashboardService {
       }),
       this.prisma.trip.findMany({ where: { currentStatus: 'EM_ANDAMENTO' }, include: { startLocal: true, vehicle: true }, orderBy: { startedAt: 'desc' }, take: 20 }),
       this.prisma.alert.findMany({ where: { createdAt: { gte: start, lte: end } }, orderBy: { createdAt: 'desc' }, take: 20 }),
+      this.prisma.trip.findMany({ where: tripWhere, select: { startedAt: true } }),
     ]);
+
+    const tripsByHourMap = new Map<number, number>();
+    for (const trip of tripsForHour) {
+      const hour = trip.startedAt.getHours();
+      tripsByHourMap.set(hour, (tripsByHourMap.get(hour) || 0) + 1);
+    }
+    const tripsByHour = Array.from(tripsByHourMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([hour, total]) => ({ hour, total }));
 
     const categoryCountMap: Record<'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO' | 'DESCONHECIDO', number> = {
       CARRO: 0,
@@ -124,7 +131,6 @@ export class DashboardService {
 
     return {
       cards: {
-        totalReadings,
         totalTrips,
         concludedOk: tripsByStatus.find((t: { currentStatus: string; _count: number }) => t.currentStatus === 'CONCLUIDO_OK')?._count || 0,
         concludedAttention: tripsByStatus.find((t: { currentStatus: string; _count: number }) => t.currentStatus === 'CONCLUIDO_ATENCAO')?._count || 0,
@@ -137,15 +143,15 @@ export class DashboardService {
       charts: {
         vehicleType: Object.entries(categoryCountMap).map(([name, value]) => ({ name, value })),
         tripStatus: tripsByStatus.map((x: { currentStatus: string; _count: number }) => ({ name: x.currentStatus, value: x._count })),
-        readingsByHour,
-        readingsByLocal: readingsByLocal.map((x: { localId: string; _count: number }) => ({
-          localId: x.localId,
-          localName: locationMap.get(x.localId) || x.localId,
+        tripsByHour,
+        tripsByLocal: tripsByLocal.map((x: { startLocalId: string; _count: number }) => ({
+          localId: x.startLocalId,
+          localName: locationMap.get(x.startLocalId) || x.startLocalId,
           value: x._count,
         })),
       },
       tables: {
-        lastReadings,
+        lastTrips,
         lastAlerts,
         heavyPending,
         openTrips,

@@ -36,7 +36,6 @@ export function DashboardPage() {
 
   const cards = data?.cards || {};
   const cardLabels: Record<string, string> = {
-    totalReadings: 'Total de leituras',
     totalTrips: 'Total de trajetos',
     concludedOk: 'Concluído OK',
     concludedAttention: 'Concluído atenção',
@@ -78,12 +77,6 @@ export function DashboardPage() {
   const selectedTipoLabel = selectedSubtypeType ? vehicleLabels[selectedSubtypeType] : '';
   const subtypeRows = (quantitativeData?.rows || []).filter((row) => row.tipo === selectedTipoLabel);
   const subtypeTotal = subtypeRows.reduce((acc, row) => acc + row.quantidade, 0);
-  const checkedTrucks = (quantitativeData?.rows || [])
-    .filter((row) => row.tipo === 'Caminhão')
-    .reduce((acc, row) => acc + row.quantidade, 0);
-  const checkedBuses = (quantitativeData?.rows || [])
-    .filter((row) => row.tipo === 'Ônibus')
-    .reduce((acc, row) => acc + row.quantidade, 0);
 
   useEffect(() => {
     if (!selectedSubtypeType) return;
@@ -124,7 +117,7 @@ export function DashboardPage() {
             <Car size={22} />
           </div>
           <div>
-            <p className="text-xs uppercase text-slate-500">Carros (leituras)</p>
+            <p className="text-xs uppercase text-slate-500">Carros</p>
             <p className="text-2xl font-semibold">{String(cards.cars || 0)}</p>
           </div>
         </Card>
@@ -137,8 +130,8 @@ export function DashboardPage() {
             <Truck size={22} />
           </div>
           <div>
-            <p className="text-xs uppercase text-slate-500">Caminhões checados</p>
-            <p className="text-2xl font-semibold">{String(checkedTrucks)}</p>
+            <p className="text-xs uppercase text-slate-500">Caminhões</p>
+            <p className="text-2xl font-semibold">{String(cards.trucks || 0)}</p>
           </div>
         </Card>
 
@@ -150,13 +143,11 @@ export function DashboardPage() {
             <Bus size={22} />
           </div>
           <div>
-            <p className="text-xs uppercase text-slate-500">Ônibus checados</p>
-            <p className="text-2xl font-semibold">{String(checkedBuses)}</p>
+            <p className="text-xs uppercase text-slate-500">Ônibus</p>
+            <p className="text-2xl font-semibold">{String(cards.buses || 0)}</p>
           </div>
         </Card>
       </div>
-
-      <p className="text-xs text-slate-500">Detalhamento de subcategorias considera checagens de pesados no período selecionado.</p>
 
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
         {Object.entries(cards).filter(([k]) => !['cars', 'trucks', 'buses'].includes(k)).map(([k, v]) => (
@@ -184,26 +175,26 @@ export function DashboardPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="h-72">
-          <CardTitle>Volume por hora</CardTitle>
+          <CardTitle>Viagens por hora</CardTitle>
           <ResponsiveContainer width="100%" height="90%">
-            <LineChart data={data?.charts?.readingsByHour || []}><XAxis dataKey="hour" /><YAxis /><Tooltip /><Line dataKey="total" stroke="#0f172a" /></LineChart>
+            <LineChart data={data?.charts?.tripsByHour || []}><XAxis dataKey="hour" /><YAxis /><Tooltip /><Line dataKey="total" stroke="#0f172a" /></LineChart>
           </ResponsiveContainer>
         </Card>
         <Card className="h-72">
-          <CardTitle>Leituras por local</CardTitle>
+          <CardTitle>Viagens por local de partida</CardTitle>
           <ResponsiveContainer width="100%" height="90%">
-            <BarChart data={data?.charts?.readingsByLocal || []}><XAxis dataKey="localName" /><YAxis /><Tooltip /><Bar dataKey="value" fill="#475569" /></BarChart>
+            <BarChart data={data?.charts?.tripsByLocal || []}><XAxis dataKey="localName" /><YAxis /><Tooltip /><Bar dataKey="value" fill="#475569" /></BarChart>
           </ResponsiveContainer>
         </Card>
       </div>
 
       <Card>
-        <CardTitle>Últimas leituras do período</CardTitle>
+        <CardTitle>Últimas viagens do período</CardTitle>
         <Table>
-          <thead><tr><th>Data/hora</th><th>Placa</th><th>Local</th><th>Câmera</th><th>Tipo</th></tr></thead>
+          <thead><tr><th>Início</th><th>Placa</th><th>Origem</th><th>Destino</th><th>Status</th><th>Tipo</th></tr></thead>
           <tbody>
-            {(data?.tables?.lastReadings || []).map((item: any) => (
-              <tr key={item.id} className="border-t border-slate-100"><td>{formatDateTime(item.capturedAt)}</td><td>{item.normalizedPlate}</td><td>{item.location?.name}</td><td>{item.camera?.name}</td><td>{vehicleLabels[item.vehicle?.categoryType] || item.vehicle?.categoryType || '-'}</td></tr>
+            {(data?.tables?.lastTrips || []).map((item: any) => (
+              <tr key={item.id} className="border-t border-slate-100"><td>{formatDateTime(item.startedAt)}</td><td>{item.plate}</td><td>{item.startLocal?.name || '-'}</td><td>{item.endLocal?.name || '-'}</td><td>{item.currentStatus}</td><td>{vehicleLabels[item.vehicle?.categoryType] || item.vehicle?.categoryType || '-'}</td></tr>
             ))}
           </tbody>
         </Table>
