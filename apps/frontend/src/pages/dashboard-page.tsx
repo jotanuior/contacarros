@@ -3,7 +3,7 @@ import { api } from '../lib/api';
 import { Card, CardTitle, Input, Table } from '../components/ui';
 import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { formatDateTime } from '../lib/utils';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bus, Car, Truck, X } from 'lucide-react';
 
 type QuantitativeRow = {
@@ -21,6 +21,7 @@ export function DashboardPage() {
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const [selectedSubtypeType, setSelectedSubtypeType] = useState<'CAMINHAO' | 'ONIBUS' | null>(null);
+  const drawerCloseButtonRef = useRef<HTMLButtonElement>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-daily', fromDate, toDate],
@@ -81,6 +82,8 @@ export function DashboardPage() {
 
   useEffect(() => {
     if (!selectedSubtypeType) return;
+
+    drawerCloseButtonRef.current?.focus();
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -203,11 +206,17 @@ export function DashboardPage() {
             className="fixed inset-0 z-40 bg-slate-900/30"
             onClick={() => setSelectedSubtypeType(null)}
           />
-          <aside className="fixed right-0 top-0 z-50 h-full w-full max-w-md border-l border-slate-200 bg-white p-4 shadow-xl">
+          <aside
+            className="fixed right-0 top-0 z-50 h-full w-full max-w-md border-l border-slate-200 bg-white p-4 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Subcategorias de ${selectedTipoLabel}`}
+          >
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Subcategorias de {selectedTipoLabel}</h2>
               <button
                 type="button"
+                ref={drawerCloseButtonRef}
                 onClick={() => setSelectedSubtypeType(null)}
                 className="rounded-md p-1 text-slate-600 hover:bg-slate-100"
                 aria-label="Fechar painel"
