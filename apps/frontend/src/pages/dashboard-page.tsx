@@ -34,8 +34,6 @@ export function DashboardPage() {
     queryFn: async () => (await api.get('/reports/quantitative', { params: { from: fromDate, to: toDate } })).data,
   });
 
-  if (isLoading) return <p>Carregando dashboard...</p>;
-
   const cards = data?.cards || {};
   const cardLabels: Record<string, string> = {
     totalReadings: 'Total de leituras',
@@ -96,6 +94,8 @@ export function DashboardPage() {
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [selectedSubtypeType]);
+
+  if (isLoading) return <p>Carregando dashboard...</p>;
 
   return (
     <div className="space-y-4">
