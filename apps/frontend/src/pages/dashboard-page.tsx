@@ -6,15 +6,31 @@ import { formatDateTime } from '../lib/utils';
 import { useMemo, useState } from 'react';
 import { Bus, Car, Truck } from 'lucide-react';
 
+type QuantitativeRow = {
+  tipo: string;
+  subtipo: string;
+  quantidade: number;
+};
+
+type QuantitativeResponse = {
+  rows: QuantitativeRow[];
+};
+
 export function DashboardPage() {
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
+  const [selectedSubtypeType, setSelectedSubtypeType] = useState<'CAMINHAO' | 'ONIBUS' | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-daily', fromDate, toDate],
     queryFn: async () => (await api.get('/dashboard/daily', { params: { from: fromDate, to: toDate } })).data,
     refetchInterval: 30000,
+  });
+
+  const { data: quantitativeData } = useQuery<QuantitativeResponse>({
+    queryKey: ['reports-quantitative-dashboard', fromDate, toDate],
+    queryFn: async () => (await api.get('/reports/quantitative', { params: { from: fromDate, to: toDate } })).data,
   });
 
   if (isLoading) return <p>Carregando dashboard...</p>;
@@ -60,6 +76,9 @@ export function DashboardPage() {
     name: tripStatusLabels[item.name] || item.name,
   }));
 
+  const selectedTipoLabel = selectedSubtypeType ? vehicleLabels[selectedSubtypeType] : '';
+  const subtypeRows = (quantitativeData?.rows || []).filter((row) => row.tipo === selectedTipoLabel);
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Dashboard operacional</h1>
@@ -85,7 +104,10 @@ export function DashboardPage() {
           </div>
         </Card>
 
-        <Card className="flex items-center gap-3">
+        <Card
+          className={`flex cursor-pointer items-center gap-3 ${selectedSubtypeType === 'CAMINHAO' ? 'ring-2 ring-slate-300' : ''}`}
+          onClick={() => setSelectedSubtypeType((current) => (current === 'CAMINHAO' ? null : 'CAMINHAO'))}
+        >
           <div className="rounded-lg bg-slate-100 p-2 text-slate-700">
             <Truck size={22} />
           </div>
@@ -95,7 +117,10 @@ export function DashboardPage() {
           </div>
         </Card>
 
-        <Card className="flex items-center gap-3">
+        <Card
+          className={`flex cursor-pointer items-center gap-3 ${selectedSubtypeType === 'ONIBUS' ? 'ring-2 ring-slate-300' : ''}`}
+          onClick={() => setSelectedSubtypeType((current) => (current === 'ONIBUS' ? null : 'ONIBUS'))}
+        >
           <div className="rounded-lg bg-slate-100 p-2 text-slate-700">
             <Bus size={22} />
           </div>
@@ -105,6 +130,29 @@ export function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      {selectedSubtypeType && (
+        <Card>
+          <CardTitle>Subcategorias de {selectedTipoLabel}</CardTitle>
+          <Table>
+            <thead>
+              <tr><th>Subcategoria</th><th>Quantidade</th></tr>
+            </thead>
+            <tbody>
+              {subtypeRows.length ? subtypeRows.map((row) => (
+                <tr key={`${row.tipo}-${row.subtipo}`} className="border-t border-slate-100">
+                  <td>{row.subtipo}</td>
+                  <td>{row.quantidade}</td>
+                </tr>
+              )) : (
+                <tr className="border-t border-slate-100">
+                  <td colSpan={2}>Sem dados de subcategoria no período selecionado.</td>
+                </tr>
+              )}
+            </tbody>
+          </Table>
+        </Card>
+      )}
 
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
         {Object.entries(cards).map(([k, v]) => (
