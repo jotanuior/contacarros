@@ -46,3 +46,6 @@ apps/backend/node_modules/.prisma/
 
 # Backups locais
 deploy/backups/
+
+# Arquivos gerados de nginx
+deploy/nginx/generated/
