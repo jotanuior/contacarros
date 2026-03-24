@@ -6,7 +6,7 @@ RUN npm install
 FROM node:22-alpine AS builder
 WORKDIR /app
 ARG VITE_APP_BASE_PATH=/
-ARG VITE_API_URL=/api
+ARG VITE_API_URL
 ENV VITE_APP_BASE_PATH=$VITE_APP_BASE_PATH
 ENV VITE_API_URL=$VITE_API_URL
 COPY --from=deps /app/node_modules ./node_modules
