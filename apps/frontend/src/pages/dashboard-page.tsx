@@ -3,7 +3,7 @@ import { api } from '../lib/api';
 import { Card, CardTitle, Input, Table } from '../components/ui';
 import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { formatDateTime } from '../lib/utils';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Bus, Car, Truck, X } from 'lucide-react';
 
 type QuantitativeRow = {
@@ -78,6 +78,21 @@ export function DashboardPage() {
 
   const selectedTipoLabel = selectedSubtypeType ? vehicleLabels[selectedSubtypeType] : '';
   const subtypeRows = (quantitativeData?.rows || []).filter((row) => row.tipo === selectedTipoLabel);
+
+  useEffect(() => {
+    if (!selectedSubtypeType) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedSubtypeType(null);
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [selectedSubtypeType]);
 
   return (
     <div className="space-y-4">
