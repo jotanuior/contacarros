@@ -61,7 +61,7 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Dashboard operacional do dia</h1>
+      <h1 className="text-xl font-semibold">Dashboard operacional</h1>
       <Card className="flex flex-col gap-2 md:flex-row md:items-end md:gap-3">
         <div>
           <p className="text-xs uppercase text-slate-500">Data inicial</p>
@@ -112,12 +112,12 @@ export function DashboardPage() {
       </div>
 
       <Card>
-        <CardTitle>Últimas leituras</CardTitle>
+        <CardTitle>Últimas leituras do período</CardTitle>
         <Table>
           <thead><tr><th>Data/hora</th><th>Placa</th><th>Local</th><th>Câmera</th><th>Tipo</th></tr></thead>
           <tbody>
             {(data?.tables?.lastReadings || []).map((item: any) => (
-              <tr key={item.id} className="border-t border-slate-100"><td>{formatDateTime(item.capturedAt)}</td><td>{item.normalizedPlate}</td><td>{item.location?.name}</td><td>{item.camera?.name}</td><td>{item.vehicle?.categoryType || '-'}</td></tr>
+              <tr key={item.id} className="border-t border-slate-100"><td>{formatDateTime(item.capturedAt)}</td><td>{item.normalizedPlate}</td><td>{item.location?.name}</td><td>{item.camera?.name}</td><td>{vehicleLabels[item.vehicle?.categoryType] || item.vehicle?.categoryType || '-'}</td></tr>
             ))}
           </tbody>
         </Table>
