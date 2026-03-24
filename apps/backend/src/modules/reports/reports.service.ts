@@ -1,10 +1,111 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { Parser } from 'json2csv';
+import ExcelJS from 'exceljs';
+import PDFDocument from 'pdfkit';
+
+type QuantitativeRow = {
+  tipo: string;
+  subtipo: string;
+  quantidade: number;
+};
 
 @Injectable()
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private readonly typeLabels: Record<string, string> = {
+    CARRO: 'Carro',
+    CAMINHAO: 'Caminhão',
+    ONIBUS: 'Ônibus',
+    OUTRO: 'Outro',
+    DESCONHECIDO: 'Desconhecido',
+  };
+
+  private parseDateBoundary(value: string, isEnd: boolean): Date | null {
+    if (!value) return null;
+
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const parsed = new Date(`${value}T00:00:00.000Z`);
+      if (Number.isNaN(parsed.getTime())) return null;
+      if (isEnd) parsed.setUTCHours(23, 59, 59, 999);
+      return parsed;
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed;
+  }
+
+  private resolvePeriod(from?: string, to?: string) {
+    const parsedFrom = from ? this.parseDateBoundary(from, false) : null;
+    const parsedTo = to ? this.parseDateBoundary(to, true) : null;
+
+    let start: Date;
+    let end: Date;
+
+    if (parsedFrom || parsedTo) {
+      const now = new Date();
+      start = parsedFrom || new Date(parsedTo || now);
+      end = parsedTo || new Date(parsedFrom || now);
+
+      if (!parsedFrom) start.setUTCHours(0, 0, 0, 0);
+      if (!parsedTo) end.setUTCHours(23, 59, 59, 999);
+    } else {
+      start = new Date();
+      start.setHours(0, 0, 0, 0);
+      end = new Date();
+      end.setHours(23, 59, 59, 999);
+    }
+
+    if (start > end) {
+      const temp = start;
+      start = end;
+      end = temp;
+    }
+
+    return { start, end };
+  }
+
+  private toDisplayType(type: string) {
+    return this.typeLabels[type] || type;
+  }
+
+  private async buildQuantitativeRows(start: Date, end: Date): Promise<QuantitativeRow[]> {
+    const checks = await this.prisma.heavyVehicleCheck.findMany({
+      where: { checkedAt: { gte: start, lte: end } },
+      include: { vehicle: { select: { categoryType: true } } },
+    });
+
+    const map = new Map<string, QuantitativeRow>();
+
+    for (const item of checks) {
+      const tipo = this.toDisplayType(item.vehicle?.categoryType || 'DESCONHECIDO');
+      const subtipo = item.subtype?.trim() || 'Não informado';
+      const key = `${tipo}::${subtipo}`;
+      const current = map.get(key);
+
+      if (current) {
+        current.quantidade += 1;
+      } else {
+        map.set(key, { tipo, subtipo, quantidade: 1 });
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      const typeOrder = a.tipo.localeCompare(b.tipo, 'pt-BR');
+      if (typeOrder !== 0) return typeOrder;
+      return a.subtipo.localeCompare(b.subtipo, 'pt-BR');
+    });
+  }
+
+  private formatDateFileToken(date: Date) {
+    return date.toISOString().slice(0, 10).replace(/-/g, '');
+  }
+
+  private periodText(start: Date, end: Date) {
+    return `${start.toLocaleDateString('pt-BR')} ${start.toLocaleTimeString('pt-BR')} até ${end.toLocaleDateString('pt-BR')} ${end.toLocaleTimeString('pt-BR')}`;
+  }
 
   async getData(from?: string, to?: string) {
     const fromDate = from ? new Date(from) : undefined;
@@ -58,6 +159,116 @@ export class ReportsService {
         subtype: item.subtype,
         operator: item.checkedByUser.name,
       }))),
+    };
+  }
+
+  async getQuantitative(from?: string, to?: string) {
+    const { start, end } = this.resolvePeriod(from, to);
+    const rows = await this.buildQuantitativeRows(start, end);
+    const total = rows.reduce((acc, item) => acc + item.quantidade, 0);
+
+    return {
+      period: {
+        from: start,
+        to: end,
+      },
+      total,
+      rows,
+    };
+  }
+
+  async getQuantitativeCsv(from?: string, to?: string) {
+    const result = await this.getQuantitative(from, to);
+    const parser = new Parser({ fields: ['tipo', 'subtipo', 'quantidade'] });
+    return parser.parse(result.rows);
+  }
+
+  async getQuantitativeXls(from?: string, to?: string) {
+    const result = await this.getQuantitative(from, to);
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Quantitativo');
+
+    sheet.columns = [
+      { header: 'Tipo', key: 'tipo', width: 20 },
+      { header: 'Subtipo', key: 'subtipo', width: 35 },
+      { header: 'Quantidade', key: 'quantidade', width: 14 },
+    ];
+
+    result.rows.forEach((row) => {
+      sheet.addRow(row);
+    });
+
+    sheet.addRow({});
+    sheet.addRow({ tipo: 'TOTAL', quantidade: result.total });
+
+    const header = sheet.getRow(1);
+    header.font = { bold: true };
+
+    const fileName = `quantitativo_tipo_subtipo_${this.formatDateFileToken(result.period.from)}_${this.formatDateFileToken(result.period.to)}.xlsx`;
+    const output = await workbook.xlsx.writeBuffer();
+
+    return {
+      fileName,
+      buffer: Buffer.isBuffer(output) ? output : Buffer.from(output),
+    };
+  }
+
+  async getQuantitativePdf(from?: string, to?: string) {
+    const result = await this.getQuantitative(from, to);
+    const fileName = `quantitativo_tipo_subtipo_${this.formatDateFileToken(result.period.from)}_${this.formatDateFileToken(result.period.to)}.pdf`;
+
+    const buffer = await new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 36 });
+      const chunks: Buffer[] = [];
+
+      doc.on('data', (chunk) => {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      });
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.fontSize(14).text('Relatório quantitativo por tipo e subtipo');
+      doc.moveDown(0.4);
+      doc.fontSize(10).text(`Período: ${this.periodText(result.period.from, result.period.to)}`);
+      doc.moveDown(0.8);
+
+      let y = doc.y;
+      const colTipo = 36;
+      const colSubtipo = 190;
+      const colQuantidade = 500;
+
+      doc.fontSize(11).text('Tipo', colTipo, y);
+      doc.text('Subtipo', colSubtipo, y);
+      doc.text('Quantidade', colQuantidade, y, { width: 60, align: 'right' });
+
+      y += 18;
+      doc.moveTo(colTipo, y - 4).lineTo(560, y - 4).stroke('#94a3b8');
+
+      for (const row of result.rows) {
+        if (y > 760) {
+          doc.addPage();
+          y = 50;
+          doc.fontSize(11).text('Tipo', colTipo, y);
+          doc.text('Subtipo', colSubtipo, y);
+          doc.text('Quantidade', colQuantidade, y, { width: 60, align: 'right' });
+          y += 18;
+          doc.moveTo(colTipo, y - 4).lineTo(560, y - 4).stroke('#94a3b8');
+        }
+
+        doc.fontSize(10).text(row.tipo, colTipo, y, { width: 140 });
+        doc.text(row.subtipo, colSubtipo, y, { width: 290 });
+        doc.text(String(row.quantidade), colQuantidade, y, { width: 60, align: 'right' });
+        y += 18;
+      }
+
+      doc.moveDown(0.5);
+      doc.fontSize(11).text(`Total: ${result.total}`);
+      doc.end();
+    });
+
+    return {
+      fileName,
+      buffer,
     };
   }
 }
