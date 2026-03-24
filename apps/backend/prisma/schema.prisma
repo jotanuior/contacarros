@@ -174,7 +174,6 @@ model Reading {
 
   @@index([normalizedPlate, capturedAt])
   @@index([cameraId, capturedAt])
-  @@index([localId, capturedAt])
   @@index([capturedAt])
 }
 

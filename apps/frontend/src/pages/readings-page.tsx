@@ -4,11 +4,21 @@ import { Badge, Card, Input, Pagination, Table } from '../components/ui';
 import { useState } from 'react';
 import { formatDateTime } from '../lib/utils';
 
+function toDateTimeLocal(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export function ReadingsPage() {
   const [plate, setPlate] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
+  const [to, setTo] = useState(() => toDateTimeLocal(new Date()));
+  const [from, setFrom] = useState(() => toDateTimeLocal(new Date(Date.now() - 24 * 60 * 60 * 1000)));
 
   const { data, isLoading } = useQuery({
     queryKey: ['readings', plate, from, to, page],

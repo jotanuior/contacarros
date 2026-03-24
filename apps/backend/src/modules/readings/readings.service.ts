@@ -158,20 +158,26 @@ export class ReadingsService {
     filters: { plate?: string; localId?: string; cameraId?: string; from?: Date; to?: Date; lowConfidence?: boolean },
     pagination: PaginationDto = {},
   ) {
+    const now = new Date();
+    const to = filters.to ?? now;
+    const from = filters.from ?? new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    if (from > to) {
+      throw new BadRequestException('Período inválido: "from" deve ser menor ou igual a "to"');
+    }
+
+    const maxRangeMs = 90 * 24 * 60 * 60 * 1000;
+    if (to.getTime() - from.getTime() > maxRangeMs) {
+      throw new BadRequestException('Período máximo permitido é de 90 dias');
+    }
+
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 20;
-    const capturedAtFilter: Prisma.DateTimeFilter | undefined = filters.from || filters.to
-      ? {
-          ...(filters.from ? { gte: filters.from } : {}),
-          ...(filters.to ? { lte: filters.to } : {}),
-        }
-      : undefined;
-
     const where: Prisma.ReadingWhereInput = {
       normalizedPlate: filters.plate ? { contains: filters.plate.toUpperCase() } : undefined,
       localId: filters.localId,
       cameraId: filters.cameraId,
-      capturedAt: capturedAtFilter,
+      capturedAt: { gte: from, lte: to },
       confidence: filters.lowConfidence ? { lt: 0.8 } : undefined,
     };
     const [data, total] = await Promise.all([
