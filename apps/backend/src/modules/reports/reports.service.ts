@@ -36,6 +36,7 @@ export class ReportsService {
         { vehicleId: null },
         { vehicle: { categoryType: { notIn: ['CAMINHAO', 'ONIBUS'] } } },
         { heavyChecks: { some: {} } },
+        { tripEvents: { some: { reading: { heavyChecks: { some: {} } } } } },
       ],
     };
   }
