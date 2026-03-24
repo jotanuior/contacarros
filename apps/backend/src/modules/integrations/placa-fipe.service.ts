@@ -76,13 +76,40 @@ export class PlacaFipeService {
     }
   }
 
+  private getVehicleInfo(data: any) {
+    if (data?.informacoes_veiculo && typeof data.informacoes_veiculo === 'object') {
+      return data.informacoes_veiculo;
+    }
+
+    return data;
+  }
+
+  private normalizeText(value: string) {
+    return value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9 ]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   classifyCategory(data: any): 'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO' | 'DESCONHECIDO' {
     if (!data) return 'DESCONHECIDO';
-    const segment = `${data.segmento ?? ''} ${data.sub_segmento ?? ''}`.toLowerCase();
+    const info = this.getVehicleInfo(data);
+    const segment = this.normalizeText(`${info?.segmento ?? ''} ${info?.sub_segmento ?? ''}`);
 
     if (segment.includes('caminh')) return 'CAMINHAO';
-    if (segment.includes('ônibus') || segment.includes('onibus') || segment.includes('micro')) return 'ONIBUS';
-    if (segment.includes('suv') || segment.includes('hatch') || segment.includes('sedan') || segment.includes('pickup') || segment.includes('carro')) {
+    if (segment.includes('onibus') || segment.includes('micro')) return 'ONIBUS';
+    if (
+      segment.includes('suv') ||
+      segment.includes('hatch') ||
+      segment.includes('sedan') ||
+      segment.includes('pickup') ||
+      segment.includes('pick up') ||
+      segment.includes('carro') ||
+      segment.includes('comercial leve')
+    ) {
       return 'CARRO';
     }
 

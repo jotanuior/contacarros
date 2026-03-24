@@ -6,6 +6,14 @@ import { PaginatedResponse, PaginationDto } from '../../common/pagination.dto';
 export class VehiclesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private getVehicleInfo(data: any) {
+    if (data?.informacoes_veiculo && typeof data.informacoes_veiculo === 'object') {
+      return data.informacoes_veiculo;
+    }
+
+    return data;
+  }
+
   async list(params: { plate?: string; categoryType?: string } = {}, pagination: PaginationDto = {}) {
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 20;
@@ -26,31 +34,33 @@ export class VehiclesService {
   }
 
   async upsertFromApi(plate: string, data: any, categoryType: string) {
+    const info = this.getVehicleInfo(data);
+
     return this.prisma.vehicle.upsert({
       where: { plate },
       update: {
-        brand: data?.marca || data?.brand,
-        model: data?.modelo || data?.model,
-        year: data?.ano ? `${data.ano}` : undefined,
-        segment: data?.segmento,
-        subSegment: data?.sub_segmento,
-        fuel: data?.combustivel,
-        city: data?.municipio,
-        state: data?.uf,
+        brand: info?.marca || info?.brand,
+        model: info?.modelo || info?.model,
+        year: info?.ano_modelo ? `${info.ano_modelo}` : info?.ano ? `${info.ano}` : undefined,
+        segment: info?.segmento,
+        subSegment: info?.sub_segmento,
+        fuel: info?.combustivel,
+        city: info?.municipio,
+        state: info?.uf,
         categoryType: categoryType as any,
         lastApiSyncAt: new Date(),
         apiRawData: data,
       },
       create: {
         plate,
-        brand: data?.marca || data?.brand,
-        model: data?.modelo || data?.model,
-        year: data?.ano ? `${data.ano}` : undefined,
-        segment: data?.segmento,
-        subSegment: data?.sub_segmento,
-        fuel: data?.combustivel,
-        city: data?.municipio,
-        state: data?.uf,
+        brand: info?.marca || info?.brand,
+        model: info?.modelo || info?.model,
+        year: info?.ano_modelo ? `${info.ano_modelo}` : info?.ano ? `${info.ano}` : undefined,
+        segment: info?.segmento,
+        subSegment: info?.sub_segmento,
+        fuel: info?.combustivel,
+        city: info?.municipio,
+        state: info?.uf,
         categoryType: categoryType as any,
         lastApiSyncAt: new Date(),
         apiRawData: data,
