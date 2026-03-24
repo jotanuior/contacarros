@@ -35,15 +35,6 @@ export class DashboardService {
     return eventCategory || 'DESCONHECIDO';
   }
 
-  private resolveTripValidationWindowEnd(
-    trip: { endedAt: Date | null; expectedUntil: Date | null; startedAt: Date },
-    tripWindowMinutes: number,
-  ) {
-    if (trip.endedAt) return trip.endedAt;
-    if (trip.expectedUntil) return trip.expectedUntil;
-    return new Date(trip.startedAt.getTime() + tripWindowMinutes * 60 * 1000);
-  }
-
   private parseDateBoundary(value: string, isEnd: boolean): Date | null {
     if (!value) return null;
 
@@ -89,7 +80,6 @@ export class DashboardService {
 
     const tripWhere = this.buildTripWhere(start, end);
     const requireHeavyValidation = await this.settingsService.getBoolean('HEAVY_TRIPS_REQUIRE_VALIDATION', true);
-    const tripWindowMinutes = await this.settingsService.getNumber('TRIP_WINDOW_MINUTES', 30);
 
     const [candidateTrips, heavyPending, openTrips, lastAlerts] = await Promise.all([
       this.prisma.trip.findMany({
@@ -121,95 +111,12 @@ export class DashboardService {
       this.prisma.alert.findMany({ where: { createdAt: { gte: start, lte: end } }, orderBy: { createdAt: 'desc' }, take: 20 }),
     ]);
 
-    let validatedTripIds = new Set<string>();
-
-    if (requireHeavyValidation) {
-      const candidateHeavyVehicleIds = Array.from(
-        new Set(
-          candidateTrips
-            .map((trip) => {
-              const category = this.getTripCategory(trip);
-              if (!this.isHeavyType(category)) return null;
-              return trip.vehicleId;
-            })
-            .filter((value): value is string => Boolean(value)),
-        ),
-      );
-
-      const checks = await this.prisma.heavyVehicleCheck.findMany({
-        where: {
-          OR: [
-            { checkedAt: { gte: start, lte: end } },
-            { tripId: { in: candidateTrips.map((trip) => trip.id) } },
-            { vehicleId: { in: candidateHeavyVehicleIds } },
-          ],
-        },
-        select: {
-          tripId: true,
-          readingId: true,
-          vehicleId: true,
-          checkedAt: true,
-        },
-      });
-
-      const checksWithTrip = checks.filter((item) => item.tripId);
-      validatedTripIds = new Set(checksWithTrip.map((item) => item.tripId as string));
-
-      const checkReadingIds = checks
-        .filter((item) => !item.tripId && item.readingId)
-        .map((item) => item.readingId as string);
-
-      if (checkReadingIds.length) {
-        const eventMatches = await this.prisma.tripEvent.findMany({
-          where: { readingId: { in: checkReadingIds } },
-          select: { tripId: true },
-        });
-
-        eventMatches.forEach((item) => validatedTripIds.add(item.tripId));
-      }
-
-      const unresolvedChecks = checks.filter((item) => !item.tripId && !item.readingId);
-      if (unresolvedChecks.length) {
-        const validatedVehicleIds = new Set(unresolvedChecks.map((item) => item.vehicleId));
-
-        for (const trip of candidateTrips) {
-          if (!trip.vehicleId) continue;
-          const category = this.getTripCategory(trip);
-          if (!this.isHeavyType(category)) continue;
-          if (validatedVehicleIds.has(trip.vehicleId)) {
-            validatedTripIds.add(trip.id);
-          }
-        }
-
-        for (const check of unresolvedChecks) {
-          const matchingTrip = candidateTrips.find((trip) => {
-            if (trip.vehicleId !== check.vehicleId) return false;
-
-            const category = this.getTripCategory(trip);
-            if (!this.isHeavyType(category)) return false;
-
-            const windowEnd = this.resolveTripValidationWindowEnd(trip, tripWindowMinutes);
-            return check.checkedAt >= trip.startedAt && check.checkedAt <= windowEnd;
-          });
-
-          if (matchingTrip) {
-            validatedTripIds.add(matchingTrip.id);
-          }
-        }
-      }
-    }
-
     const filteredTrips = requireHeavyValidation
       ? candidateTrips.filter((trip) => {
           const category = this.getTripCategory(trip);
           if (!this.isHeavyType(category)) {
             return true;
           }
-
-          if (validatedTripIds.has(trip.id)) {
-            return true;
-          }
-
           return trip.currentStatus !== 'PENDENTE_VALIDACAO';
         })
       : candidateTrips;
