@@ -77,6 +77,13 @@ export function DashboardPage() {
 
   const selectedTipoLabel = selectedSubtypeType ? vehicleLabels[selectedSubtypeType] : '';
   const subtypeRows = (quantitativeData?.rows || []).filter((row) => row.tipo === selectedTipoLabel);
+  const subtypeTotal = subtypeRows.reduce((acc, row) => acc + row.quantidade, 0);
+  const checkedTrucks = (quantitativeData?.rows || [])
+    .filter((row) => row.tipo === 'Caminhão')
+    .reduce((acc, row) => acc + row.quantidade, 0);
+  const checkedBuses = (quantitativeData?.rows || [])
+    .filter((row) => row.tipo === 'Ônibus')
+    .reduce((acc, row) => acc + row.quantidade, 0);
 
   useEffect(() => {
     if (!selectedSubtypeType) return;
@@ -117,7 +124,7 @@ export function DashboardPage() {
             <Car size={22} />
           </div>
           <div>
-            <p className="text-xs uppercase text-slate-500">Carros</p>
+            <p className="text-xs uppercase text-slate-500">Carros (leituras)</p>
             <p className="text-2xl font-semibold">{String(cards.cars || 0)}</p>
           </div>
         </Card>
@@ -130,8 +137,8 @@ export function DashboardPage() {
             <Truck size={22} />
           </div>
           <div>
-            <p className="text-xs uppercase text-slate-500">Caminhões</p>
-            <p className="text-2xl font-semibold">{String(cards.trucks || 0)}</p>
+            <p className="text-xs uppercase text-slate-500">Caminhões checados</p>
+            <p className="text-2xl font-semibold">{String(checkedTrucks)}</p>
           </div>
         </Card>
 
@@ -143,14 +150,16 @@ export function DashboardPage() {
             <Bus size={22} />
           </div>
           <div>
-            <p className="text-xs uppercase text-slate-500">Ônibus</p>
-            <p className="text-2xl font-semibold">{String(cards.buses || 0)}</p>
+            <p className="text-xs uppercase text-slate-500">Ônibus checados</p>
+            <p className="text-2xl font-semibold">{String(checkedBuses)}</p>
           </div>
         </Card>
       </div>
 
+      <p className="text-xs text-slate-500">Detalhamento de subcategorias considera checagens de pesados no período selecionado.</p>
+
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
-        {Object.entries(cards).map(([k, v]) => (
+        {Object.entries(cards).filter(([k]) => !['cars', 'trucks', 'buses'].includes(k)).map(([k, v]) => (
           <Card key={k}>
             <p className="text-xs uppercase text-slate-500">{cardLabels[k] || k}</p>
             <p className="text-2xl font-semibold">{String(v)}</p>
@@ -213,7 +222,10 @@ export function DashboardPage() {
             aria-label={`Subcategorias de ${selectedTipoLabel}`}
           >
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Subcategorias de {selectedTipoLabel}</h2>
+              <div>
+                <h2 className="text-lg font-semibold">Subcategorias de {selectedTipoLabel}</h2>
+                <p className="text-xs text-slate-500">Total checado: {subtypeTotal}</p>
+              </div>
               <button
                 type="button"
                 ref={drawerCloseButtonRef}
