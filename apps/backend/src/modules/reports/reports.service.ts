@@ -221,7 +221,7 @@ export class ReportsService {
       const doc = new PDFDocument({ margin: 36 });
       const chunks: Buffer[] = [];
 
-      doc.on('data', (chunk) => {
+      doc.on('data', (chunk: Buffer | Uint8Array) => {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
       });
       doc.on('end', () => resolve(Buffer.concat(chunks)));
