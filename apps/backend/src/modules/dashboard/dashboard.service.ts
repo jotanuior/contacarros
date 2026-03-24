@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, VehicleCategoryType } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 
@@ -10,26 +10,38 @@ export class DashboardService {
     private readonly settingsService: SettingsService,
   ) {}
 
-  private async buildTripWhere(start: Date, end: Date): Promise<Prisma.TripWhereInput> {
-    const requireHeavyValidation = await this.settingsService.getBoolean('HEAVY_TRIPS_REQUIRE_VALIDATION', true);
-
-    const baseWhere: Prisma.TripWhereInput = {
+  private buildTripWhere(start: Date, end: Date): Prisma.TripWhereInput {
+    return {
       startedAt: { gte: start, lte: end },
     };
+  }
 
-    if (!requireHeavyValidation) {
-      return baseWhere;
+  private isHeavyType(category: VehicleCategoryType | 'DESCONHECIDO') {
+    return category === 'CAMINHAO' || category === 'ONIBUS';
+  }
+
+  private getTripCategory(trip: {
+    vehicle: { categoryType: VehicleCategoryType } | null;
+    tripEvents: Array<{ reading: { vehicle: { categoryType: VehicleCategoryType } | null } | null }>;
+  }): VehicleCategoryType | 'DESCONHECIDO' {
+    if (trip.vehicle?.categoryType) {
+      return trip.vehicle.categoryType;
     }
 
-    return {
-      ...baseWhere,
-      OR: [
-        { vehicleId: null },
-        { vehicle: { categoryType: { notIn: ['CAMINHAO', 'ONIBUS'] } } },
-        { heavyChecks: { some: {} } },
-        { tripEvents: { some: { reading: { heavyChecks: { some: {} } } } } },
-      ],
-    };
+    const eventCategory = trip.tripEvents
+      .map((event) => event.reading?.vehicle?.categoryType)
+      .find(Boolean);
+
+    return eventCategory || 'DESCONHECIDO';
+  }
+
+  private resolveTripValidationWindowEnd(
+    trip: { endedAt: Date | null; expectedUntil: Date | null; startedAt: Date },
+    tripWindowMinutes: number,
+  ) {
+    if (trip.endedAt) return trip.endedAt;
+    if (trip.expectedUntil) return trip.expectedUntil;
+    return new Date(trip.startedAt.getTime() + tripWindowMinutes * 60 * 1000);
   }
 
   private parseDateBoundary(value: string, isEnd: boolean): Date | null {
@@ -75,18 +87,29 @@ export class DashboardService {
       end = temp;
     }
 
-    const tripWhere = await this.buildTripWhere(start, end);
+    const tripWhere = this.buildTripWhere(start, end);
+    const requireHeavyValidation = await this.settingsService.getBoolean('HEAVY_TRIPS_REQUIRE_VALIDATION', true);
+    const tripWindowMinutes = await this.settingsService.getNumber('TRIP_WINDOW_MINUTES', 30);
 
-    const [totalTrips, tripsByStatus, vehicleByCategory, tripsByLocal, lastTrips, heavyPending, openTrips, lastAlerts, tripsForHour] = await Promise.all([
-      this.prisma.trip.count({ where: tripWhere }),
-      this.prisma.trip.groupBy({ by: ['currentStatus'], _count: true, where: tripWhere }),
-      this.prisma.trip.groupBy({ by: ['vehicleId'], _count: true, where: tripWhere }),
-      this.prisma.trip.groupBy({ by: ['startLocalId'], _count: true, where: tripWhere }),
+    const [candidateTrips, heavyPending, openTrips, lastAlerts] = await Promise.all([
       this.prisma.trip.findMany({
         where: tripWhere,
-        include: { vehicle: true, startLocal: true, endLocal: true },
+        include: {
+          vehicle: true,
+          startLocal: true,
+          endLocal: true,
+          tripEvents: {
+            include: {
+              reading: {
+                select: {
+                  id: true,
+                  vehicle: { select: { categoryType: true } },
+                },
+              },
+            },
+          },
+        },
         orderBy: { startedAt: 'desc' },
-        take: 20,
       }),
       this.prisma.reading.findMany({
         where: { vehicle: { categoryType: { in: ['CAMINHAO', 'ONIBUS'] } } },
@@ -96,17 +119,74 @@ export class DashboardService {
       }),
       this.prisma.trip.findMany({ where: { currentStatus: 'EM_ANDAMENTO' }, include: { startLocal: true, vehicle: true }, orderBy: { startedAt: 'desc' }, take: 20 }),
       this.prisma.alert.findMany({ where: { createdAt: { gte: start, lte: end } }, orderBy: { createdAt: 'desc' }, take: 20 }),
-      this.prisma.trip.findMany({ where: tripWhere, select: { startedAt: true } }),
     ]);
 
-    const tripsByHourMap = new Map<number, number>();
-    for (const trip of tripsForHour) {
-      const hour = trip.startedAt.getHours();
-      tripsByHourMap.set(hour, (tripsByHourMap.get(hour) || 0) + 1);
+    let validatedTripIds = new Set<string>();
+
+    if (requireHeavyValidation) {
+      const checks = await this.prisma.heavyVehicleCheck.findMany({
+        where: {
+          OR: [
+            { checkedAt: { gte: start, lte: end } },
+            { tripId: { in: candidateTrips.map((trip) => trip.id) } },
+          ],
+        },
+        select: {
+          tripId: true,
+          readingId: true,
+          vehicleId: true,
+          checkedAt: true,
+        },
+      });
+
+      const checksWithTrip = checks.filter((item) => item.tripId);
+      validatedTripIds = new Set(checksWithTrip.map((item) => item.tripId as string));
+
+      const checkReadingIds = checks
+        .filter((item) => !item.tripId && item.readingId)
+        .map((item) => item.readingId as string);
+
+      if (checkReadingIds.length) {
+        const eventMatches = await this.prisma.tripEvent.findMany({
+          where: { readingId: { in: checkReadingIds } },
+          select: { tripId: true },
+        });
+
+        eventMatches.forEach((item) => validatedTripIds.add(item.tripId));
+      }
+
+      const unresolvedChecks = checks.filter((item) => !item.tripId && !item.readingId);
+      if (unresolvedChecks.length) {
+        for (const check of unresolvedChecks) {
+          const matchingTrip = candidateTrips.find((trip) => {
+            if (trip.vehicleId !== check.vehicleId) return false;
+
+            const category = this.getTripCategory(trip);
+            if (!this.isHeavyType(category)) return false;
+
+            const windowEnd = this.resolveTripValidationWindowEnd(trip, tripWindowMinutes);
+            return check.checkedAt >= trip.startedAt && check.checkedAt <= windowEnd;
+          });
+
+          if (matchingTrip) {
+            validatedTripIds.add(matchingTrip.id);
+          }
+        }
+      }
     }
-    const tripsByHour = Array.from(tripsByHourMap.entries())
-      .sort((a, b) => a[0] - b[0])
-      .map(([hour, total]) => ({ hour, total }));
+
+    const filteredTrips = requireHeavyValidation
+      ? candidateTrips.filter((trip) => {
+          const category = this.getTripCategory(trip);
+          return !this.isHeavyType(category) || validatedTripIds.has(trip.id);
+        })
+      : candidateTrips;
+
+    const totalTrips = filteredTrips.length;
+
+    const tripsByStatusMap = new Map<string, number>();
+    const tripsByHourMap = new Map<number, number>();
+    const tripsByLocalMap = new Map<string, number>();
 
     const categoryCountMap: Record<'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO' | 'DESCONHECIDO', number> = {
       CARRO: 0,
@@ -116,19 +196,43 @@ export class DashboardService {
       DESCONHECIDO: 0,
     };
 
-    const vehicleIds = vehicleByCategory.map((x: { vehicleId: string | null }) => x.vehicleId).filter(Boolean) as string[];
-    if (vehicleIds.length) {
-      const vehicles = await this.prisma.vehicle.findMany({ where: { id: { in: vehicleIds } }, select: { id: true, categoryType: true } });
-      const vehicleMap = new Map(vehicles.map((v: { id: string; categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO' | 'DESCONHECIDO' }) => [v.id, v.categoryType]));
-      for (const item of vehicleByCategory) {
-        const category = item.vehicleId ? vehicleMap.get(item.vehicleId) : 'DESCONHECIDO';
-        const key = (category || 'DESCONHECIDO') as keyof typeof categoryCountMap;
-        categoryCountMap[key] += item._count;
-      }
+    for (const trip of filteredTrips) {
+      tripsByStatusMap.set(trip.currentStatus, (tripsByStatusMap.get(trip.currentStatus) || 0) + 1);
+
+      const hour = trip.startedAt.getHours();
+      tripsByHourMap.set(hour, (tripsByHourMap.get(hour) || 0) + 1);
+
+      tripsByLocalMap.set(trip.startLocalId, (tripsByLocalMap.get(trip.startLocalId) || 0) + 1);
+
+      const category = this.getTripCategory(trip);
+      categoryCountMap[category as keyof typeof categoryCountMap] += 1;
     }
 
-    const locations = await this.prisma.location.findMany({ select: { id: true, name: true } });
+    const tripsByStatus = Array.from(tripsByStatusMap.entries()).map(([currentStatus, count]) => ({
+      currentStatus,
+      _count: count,
+    }));
+
+    const tripsByHour = Array.from(tripsByHourMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([hour, total]) => ({ hour, total }));
+
+    const locationIds = Array.from(tripsByLocalMap.keys());
+    const locations = await this.prisma.location.findMany({
+      where: locationIds.length ? { id: { in: locationIds } } : undefined,
+      select: { id: true, name: true },
+    });
     const locationMap = new Map(locations.map((l: { id: string; name: string }) => [l.id, l.name]));
+
+    const tripsByLocal = Array.from(tripsByLocalMap.entries()).map(([startLocalId, count]) => ({
+      startLocalId,
+      _count: count,
+    }));
+
+    const lastTrips = filteredTrips.slice(0, 20).map((trip) => ({
+      ...trip,
+      tripEvents: undefined,
+    }));
 
     return {
       cards: {
