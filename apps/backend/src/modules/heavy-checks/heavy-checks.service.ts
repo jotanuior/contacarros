@@ -80,9 +80,20 @@ export class HeavyChecksService {
     subtype: string;
     notes?: string;
   }) {
+    let resolvedTripId = data.tripId;
+
+    if (!resolvedTripId && data.readingId) {
+      const tripEvent = await this.prisma.tripEvent.findFirst({
+        where: { readingId: data.readingId },
+        orderBy: { eventAt: 'desc' },
+      });
+      resolvedTripId = tripEvent?.tripId;
+    }
+
     return this.prisma.heavyVehicleCheck.create({
       data: {
         ...data,
+        tripId: resolvedTripId,
         checkedAt: new Date(),
       },
     });

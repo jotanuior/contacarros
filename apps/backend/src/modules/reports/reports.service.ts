@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
 import { Parser } from 'json2csv';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
+import { SettingsService } from '../settings/settings.service';
 
 type QuantitativeRow = {
   tipo: string;
@@ -12,7 +14,31 @@ type QuantitativeRow = {
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settingsService: SettingsService,
+  ) {}
+
+  private async buildTripWhere(fromDate?: Date, toDate?: Date): Promise<Prisma.TripWhereInput> {
+    const requireHeavyValidation = await this.settingsService.getBoolean('HEAVY_TRIPS_REQUIRE_VALIDATION', true);
+
+    const baseWhere: Prisma.TripWhereInput = {
+      startedAt: fromDate || toDate ? { gte: fromDate, lte: toDate } : undefined,
+    };
+
+    if (!requireHeavyValidation) {
+      return baseWhere;
+    }
+
+    return {
+      ...baseWhere,
+      OR: [
+        { vehicleId: null },
+        { vehicle: { categoryType: { notIn: ['CAMINHAO', 'ONIBUS'] } } },
+        { heavyChecks: { some: {} } },
+      ],
+    };
+  }
 
   private readonly typeLabels: Record<string, string> = {
     CARRO: 'Carro',
@@ -110,10 +136,11 @@ export class ReportsService {
   async getData(from?: string, to?: string) {
     const fromDate = from ? new Date(from) : undefined;
     const toDate = to ? new Date(to) : undefined;
+    const tripWhere = await this.buildTripWhere(fromDate, toDate);
 
     const [readings, trips, alerts, heavyChecks] = await Promise.all([
       this.prisma.reading.findMany({ where: { capturedAt: fromDate || toDate ? { gte: fromDate, lte: toDate } : undefined }, include: { vehicle: true, location: true, camera: true } }),
-      this.prisma.trip.findMany({ where: { startedAt: fromDate || toDate ? { gte: fromDate, lte: toDate } : undefined }, include: { startLocal: true, endLocal: true, vehicle: true } }),
+      this.prisma.trip.findMany({ where: tripWhere, include: { startLocal: true, endLocal: true, vehicle: true } }),
       this.prisma.alert.findMany({ where: { createdAt: fromDate || toDate ? { gte: fromDate, lte: toDate } : undefined } }),
       this.prisma.heavyVehicleCheck.findMany({ where: { checkedAt: fromDate || toDate ? { gte: fromDate, lte: toDate } : undefined }, include: { checkedByUser: true, vehicle: true } }),
     ]);

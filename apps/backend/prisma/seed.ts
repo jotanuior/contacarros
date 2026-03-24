@@ -94,6 +94,7 @@ async function main() {
     { key: 'TRIP_WINDOW_MINUTES', value: '30', description: 'Janela máxima para conclusão de trajeto' },
     { key: 'DEDUP_MINUTES', value: '2', description: 'Janela de deduplicação de leitura' },
     { key: 'MIN_CONFIDENCE', value: '0.8', description: 'Confiança mínima para alerta' },
+    { key: 'HEAVY_TRIPS_REQUIRE_VALIDATION', value: 'true', description: 'Caminhão/ônibus só contam como viagem após validação' },
     { key: 'PLACA_FIPE_CACHE_MINUTES', value: '1440', description: 'Tempo de cache da integração externa' },
     { key: 'PLACA_FIPE_ENABLED', value: 'true', description: 'Habilita integração externa' },
     { key: 'TRUCK_SUBTYPES', value: 'Caminhão pequeno,Caminhão 3/4,Caminhão toco,Caminhão truck,Carreta,Bitrem,Rodotrem,Caminhão grande', description: 'Subtipos de caminhão' },

@@ -18,6 +18,7 @@ export function SettingsPage() {
   const [token, setToken] = useState('');
   const [enabled, setEnabled] = useState('true');
   const [cacheMinutes, setCacheMinutes] = useState('1440');
+  const [heavyTripsRequireValidation, setHeavyTripsRequireValidation] = useState('true');
   const [truckSubtypes, setTruckSubtypes] = useState('');
   const [busSubtypes, setBusSubtypes] = useState('');
   const [editableRows, setEditableRows] = useState<Record<string, { value: string; description: string }>>({});
@@ -33,6 +34,7 @@ export function SettingsPage() {
     setToken(byKey('PLACA_FIPE_TOKEN'));
     setEnabled(byKey('PLACA_FIPE_ENABLED') || 'true');
     setCacheMinutes(byKey('PLACA_FIPE_CACHE_MINUTES') || '1440');
+    setHeavyTripsRequireValidation(byKey('HEAVY_TRIPS_REQUIRE_VALIDATION') || 'true');
     setTruckSubtypes(byKey('TRUCK_SUBTYPES'));
     setBusSubtypes(byKey('BUS_SUBTYPES'));
 
@@ -104,6 +106,22 @@ export function SettingsPage() {
     },
   });
 
+  const heavyValidationMutation = useMutation({
+    mutationFn: async () =>
+      api.post('/settings', {
+        key: 'HEAVY_TRIPS_REQUIRE_VALIDATION',
+        value: heavyTripsRequireValidation,
+        description: 'Caminhão/ônibus só contam como viagem após validação',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-daily'] });
+      queryClient.invalidateQueries({ queryKey: ['reports'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-quantitative'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-quantitative-dashboard'] });
+    },
+  });
+
   const rowMutation = useMutation({
     mutationFn: async (payload: { key: string; value: string; description: string }) => api.post('/settings', payload),
     onSuccess: () => {
@@ -164,6 +182,25 @@ export function SettingsPage() {
         <div>
           <Button onClick={() => subtypeMutation.mutate()} disabled={subtypeMutation.isPending}>
             Salvar subtipos
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-800">Validação para contar viagem de pesados</h2>
+          <p className="text-sm text-slate-600">Quando ativo, caminhão/ônibus só contam como viagem após validação no módulo de Pesados.</p>
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          <Input
+            placeholder="true ou false"
+            value={heavyTripsRequireValidation}
+            onChange={(e) => setHeavyTripsRequireValidation(e.target.value)}
+          />
+        </div>
+        <div>
+          <Button onClick={() => heavyValidationMutation.mutate()} disabled={heavyValidationMutation.isPending}>
+            Salvar regra de validação
           </Button>
         </div>
       </Card>

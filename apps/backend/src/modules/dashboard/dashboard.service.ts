@@ -1,9 +1,35 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
+import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settingsService: SettingsService,
+  ) {}
+
+  private async buildTripWhere(start: Date, end: Date): Promise<Prisma.TripWhereInput> {
+    const requireHeavyValidation = await this.settingsService.getBoolean('HEAVY_TRIPS_REQUIRE_VALIDATION', true);
+
+    const baseWhere: Prisma.TripWhereInput = {
+      startedAt: { gte: start, lte: end },
+    };
+
+    if (!requireHeavyValidation) {
+      return baseWhere;
+    }
+
+    return {
+      ...baseWhere,
+      OR: [
+        { vehicleId: null },
+        { vehicle: { categoryType: { notIn: ['CAMINHAO', 'ONIBUS'] } } },
+        { heavyChecks: { some: {} } },
+      ],
+    };
+  }
 
   private parseDateBoundary(value: string, isEnd: boolean): Date | null {
     if (!value) return null;
@@ -48,10 +74,12 @@ export class DashboardService {
       end = temp;
     }
 
+    const tripWhere = await this.buildTripWhere(start, end);
+
     const [totalReadings, totalTrips, tripsByStatus, vehicleByCategory, readingsByHour, readingsByLocal, lastReadings, heavyPending, openTrips, lastAlerts] = await Promise.all([
       this.prisma.reading.count({ where: { capturedAt: { gte: start, lte: end } } }),
-      this.prisma.trip.count({ where: { startedAt: { gte: start, lte: end } } }),
-      this.prisma.trip.groupBy({ by: ['currentStatus'], _count: true, where: { startedAt: { gte: start, lte: end } } }),
+      this.prisma.trip.count({ where: tripWhere }),
+      this.prisma.trip.groupBy({ by: ['currentStatus'], _count: true, where: tripWhere }),
       this.prisma.reading.groupBy({ by: ['vehicleId'], _count: true, where: { capturedAt: { gte: start, lte: end } } }),
       this.prisma.$queryRaw<Array<{ hour: number; total: number }>>`
         SELECT EXTRACT(HOUR FROM "capturedAt")::int as hour, COUNT(*)::int as total
