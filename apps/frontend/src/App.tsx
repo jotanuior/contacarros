@@ -16,6 +16,7 @@ const UsersPage = lazy(() => import('./pages/users-page').then((module) => ({ de
 const AuditPage = lazy(() => import('./pages/audit-page').then((module) => ({ default: module.AuditPage })));
 const ReportsPage = lazy(() => import('./pages/reports-page').then((module) => ({ default: module.ReportsPage })));
 const SettingsPage = lazy(() => import('./pages/settings-page').then((module) => ({ default: module.SettingsPage })));
+const WebhookSimulatorPage = lazy(() => import('./pages/webhook-simulator-page').then((module) => ({ default: module.WebhookSimulatorPage })));
 
 function PageFallback() {
   return <div className="rounded-lg border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">Carregando tela...</div>;
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="auditoria" element={<AuditPage />} />
           <Route path="relatorios" element={<ReportsPage />} />
           <Route path="configuracoes" element={<SettingsPage />} />
+          <Route path="simulador-webhook" element={<WebhookSimulatorPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

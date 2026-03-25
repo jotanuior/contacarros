@@ -1,23 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, VehicleCategoryType } from '@prisma/client';
 import { PrismaService } from '../../common/prisma.service';
-import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly settingsService: SettingsService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   private buildTripWhere(start: Date, end: Date): Prisma.TripWhereInput {
     return {
       startedAt: { gte: start, lte: end },
     };
-  }
-
-  private isHeavyType(category: VehicleCategoryType | 'DESCONHECIDO') {
-    return category === 'CAMINHAO' || category === 'ONIBUS';
   }
 
   private getTripCategory(trip: {
@@ -79,9 +71,8 @@ export class DashboardService {
     }
 
     const tripWhere = this.buildTripWhere(start, end);
-    const requireHeavyValidation = await this.settingsService.getBoolean('HEAVY_TRIPS_REQUIRE_VALIDATION', true);
 
-    const [candidateTrips, heavyPending, openTrips, lastAlerts] = await Promise.all([
+    const [candidateTrips, heavyPending, openTrips, lastAlerts, latestTrip] = await Promise.all([
       this.prisma.trip.findMany({
         where: tripWhere,
         include: {
@@ -109,17 +100,13 @@ export class DashboardService {
       }),
       this.prisma.trip.findMany({ where: { currentStatus: 'EM_ANDAMENTO' }, include: { startLocal: true, vehicle: true }, orderBy: { startedAt: 'desc' }, take: 20 }),
       this.prisma.alert.findMany({ where: { createdAt: { gte: start, lte: end } }, orderBy: { createdAt: 'desc' }, take: 20 }),
+      this.prisma.trip.findFirst({
+        orderBy: { startedAt: 'desc' },
+        select: { startedAt: true },
+      }),
     ]);
 
-    const filteredTrips = requireHeavyValidation
-      ? candidateTrips.filter((trip) => {
-          const category = this.getTripCategory(trip);
-          if (!this.isHeavyType(category)) {
-            return true;
-          }
-          return trip.currentStatus !== 'PENDENTE_VALIDACAO';
-        })
-      : candidateTrips;
+    const filteredTrips = candidateTrips;
 
     const totalTrips = filteredTrips.length;
 
@@ -174,6 +161,9 @@ export class DashboardService {
     }));
 
     return {
+      meta: {
+        lastTripDate: latestTrip?.startedAt ? latestTrip.startedAt.toISOString().slice(0, 10) : null,
+      },
       cards: {
         totalTrips,
         concludedOk: tripsByStatus.find((t: { currentStatus: string; _count: number }) => t.currentStatus === 'CONCLUIDO_OK')?._count || 0,

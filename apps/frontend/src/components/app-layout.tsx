@@ -15,6 +15,7 @@ const menu = [
   { to: '/auditoria', label: 'Auditoria' },
   { to: '/relatorios', label: 'Relatórios' },
   { to: '/configuracoes', label: 'Configurações' },
+  { to: '/simulador-webhook', label: 'Simulador Webhook' },
 ];
 
 export function AppLayout() {

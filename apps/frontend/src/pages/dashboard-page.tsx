@@ -29,6 +29,7 @@ export function DashboardPage() {
   const [toDate, setToDate] = useState(today);
   const [selectedSubtypeType, setSelectedSubtypeType] = useState<'CAMINHAO' | 'ONIBUS' | null>(null);
   const drawerCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const autoFallbackAppliedRef = useRef(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-daily', fromDate, toDate],
@@ -84,6 +85,20 @@ export function DashboardPage() {
   const selectedTipoLabel = selectedSubtypeType ? vehicleLabels[selectedSubtypeType] : '';
   const subtypeRows = (quantitativeData?.rows || []).filter((row) => row.tipo === selectedTipoLabel);
   const subtypeTotal = subtypeRows.reduce((acc, row) => acc + row.quantidade, 0);
+
+  useEffect(() => {
+    const isTodayRange = fromDate === today && toDate === today;
+    const hasNoTrips = Number(cards.totalTrips || 0) === 0;
+    const lastTripDate = data?.meta?.lastTripDate as string | null | undefined;
+
+    if (!isTodayRange || !hasNoTrips || !lastTripDate || lastTripDate === today || autoFallbackAppliedRef.current) {
+      return;
+    }
+
+    autoFallbackAppliedRef.current = true;
+    setFromDate(lastTripDate);
+    setToDate(lastTripDate);
+  }, [fromDate, toDate, today, cards.totalTrips, data?.meta?.lastTripDate]);
 
   useEffect(() => {
     if (!selectedSubtypeType) return;
