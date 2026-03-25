@@ -18,6 +18,7 @@ export function SettingsPage() {
   const [token, setToken] = useState('');
   const [enabled, setEnabled] = useState('true');
   const [cacheMinutes, setCacheMinutes] = useState('1440');
+  const [fetchOnlyUnknown, setFetchOnlyUnknown] = useState('true');
   const [heavyTripsRequireValidation, setHeavyTripsRequireValidation] = useState('true');
   const [returnSameLocalCancelMinutes, setReturnSameLocalCancelMinutes] = useState('30');
   const [truckSubtypes, setTruckSubtypes] = useState('');
@@ -35,6 +36,7 @@ export function SettingsPage() {
     setToken(byKey('PLACA_FIPE_TOKEN'));
     setEnabled(byKey('PLACA_FIPE_ENABLED') || 'true');
     setCacheMinutes(byKey('PLACA_FIPE_CACHE_MINUTES') || '1440');
+    setFetchOnlyUnknown(byKey('PLACA_FIPE_FETCH_ONLY_UNKNOWN') || 'true');
     setHeavyTripsRequireValidation(byKey('HEAVY_TRIPS_REQUIRE_VALIDATION') || 'true');
     setReturnSameLocalCancelMinutes(byKey('RETURN_SAME_LOCAL_CANCEL_MINUTES') || '30');
     setTruckSubtypes(byKey('TRUCK_SUBTYPES'));
@@ -81,6 +83,11 @@ export function SettingsPage() {
           key: 'PLACA_FIPE_CACHE_MINUTES',
           value: cacheMinutes,
           description: 'Tempo de cache da API Placa Fipe em minutos',
+        }),
+        api.post('/settings', {
+          key: 'PLACA_FIPE_FETCH_ONLY_UNKNOWN',
+          value: fetchOnlyUnknown,
+          description: 'Consulta API externa apenas para placas sem dados locais',
         }),
       ]),
     onSuccess: () => {
@@ -178,6 +185,7 @@ export function SettingsPage() {
           <Input placeholder="Token da API" type="password" value={token} onChange={(e) => setToken(e.target.value)} />
           <Input placeholder="Integração habilitada (true/false)" value={enabled} onChange={(e) => setEnabled(e.target.value)} />
           <Input placeholder="Cache em minutos (ex: 1440)" value={cacheMinutes} onChange={(e) => setCacheMinutes(e.target.value)} />
+          <Input placeholder="Consultar só desconhecidos (true/false)" value={fetchOnlyUnknown} onChange={(e) => setFetchOnlyUnknown(e.target.value)} />
         </div>
         <div>
           <Button onClick={() => integrationMutation.mutate()} disabled={integrationMutation.isPending}>

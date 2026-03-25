@@ -22,10 +22,22 @@ export class PlacaFipeService {
       return null;
     }
 
+    const cachedVehicle = await this.prisma.vehicle.findUnique({ where: { plate: normalizedPlate } });
+    const hasLocalVehicleData = Boolean(
+      cachedVehicle?.brand ||
+      cachedVehicle?.model ||
+      (cachedVehicle?.categoryType && cachedVehicle.categoryType !== 'DESCONHECIDO') ||
+      cachedVehicle?.apiRawData,
+    );
+
+    const fetchOnlyUnknown = await this.settingsService.getBoolean('PLACA_FIPE_FETCH_ONLY_UNKNOWN', true);
+    if (fetchOnlyUnknown && hasLocalVehicleData) {
+      return cachedVehicle?.apiRawData || null;
+    }
+
     const cacheMinutes = await this.settingsService.getNumber('PLACA_FIPE_CACHE_MINUTES', 1440);
     const cacheLimitDate = new Date(Date.now() - cacheMinutes * 60 * 1000);
 
-    const cachedVehicle = await this.prisma.vehicle.findUnique({ where: { plate: normalizedPlate } });
     if (cachedVehicle?.lastApiSyncAt && cachedVehicle.lastApiSyncAt > cacheLimitDate) {
       return cachedVehicle.apiRawData;
     }

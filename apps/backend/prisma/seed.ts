@@ -98,6 +98,7 @@ async function main() {
     { key: 'HEAVY_TRIPS_REQUIRE_VALIDATION', value: 'true', description: 'Caminhão/ônibus só contam como viagem após validação' },
     { key: 'PLACA_FIPE_CACHE_MINUTES', value: '1440', description: 'Tempo de cache da integração externa' },
     { key: 'PLACA_FIPE_ENABLED', value: 'true', description: 'Habilita integração externa' },
+    { key: 'PLACA_FIPE_FETCH_ONLY_UNKNOWN', value: 'true', description: 'Consulta API externa apenas para placas sem dados locais' },
     { key: 'TRUCK_SUBTYPES', value: 'Caminhão pequeno,Caminhão 3/4,Caminhão toco,Caminhão truck,Carreta,Bitrem,Rodotrem,Caminhão grande', description: 'Subtipos de caminhão' },
     { key: 'BUS_SUBTYPES', value: 'Micro-ônibus,Ônibus urbano,Ônibus rodoviário,Ônibus fretado', description: 'Subtipos de ônibus' },
   ];
