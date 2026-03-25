@@ -6,6 +6,8 @@ import { PrismaService } from '../../common/prisma.service';
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private readonly concludedStatuses = new Set(['CONCLUIDO_OK', 'CONCLUIDO_ATENCAO']);
+
   private buildTripWhere(start: Date, end: Date): Prisma.TripWhereInput {
     return {
       startedAt: { gte: start, lte: end },
@@ -107,8 +109,9 @@ export class DashboardService {
     ]);
 
     const filteredTrips = candidateTrips;
+    const concludedTrips = filteredTrips.filter((trip) => this.concludedStatuses.has(trip.currentStatus));
 
-    const totalTrips = filteredTrips.length;
+    const totalTrips = concludedTrips.length;
 
     const tripsByStatusMap = new Map<string, number>();
     const tripsByHourMap = new Map<number, number>();
@@ -124,7 +127,9 @@ export class DashboardService {
 
     for (const trip of filteredTrips) {
       tripsByStatusMap.set(trip.currentStatus, (tripsByStatusMap.get(trip.currentStatus) || 0) + 1);
+    }
 
+    for (const trip of concludedTrips) {
       const hour = trip.startedAt.getHours();
       tripsByHourMap.set(hour, (tripsByHourMap.get(hour) || 0) + 1);
 
