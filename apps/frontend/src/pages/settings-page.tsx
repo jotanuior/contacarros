@@ -19,6 +19,7 @@ export function SettingsPage() {
   const [enabled, setEnabled] = useState('true');
   const [cacheMinutes, setCacheMinutes] = useState('1440');
   const [fetchOnlyUnknown, setFetchOnlyUnknown] = useState('true');
+  const [forceRefreshAfterDays, setForceRefreshAfterDays] = useState('730');
   const [heavyTripsRequireValidation, setHeavyTripsRequireValidation] = useState('true');
   const [returnSameLocalCancelMinutes, setReturnSameLocalCancelMinutes] = useState('30');
   const [truckSubtypes, setTruckSubtypes] = useState('');
@@ -37,6 +38,7 @@ export function SettingsPage() {
     setEnabled(byKey('PLACA_FIPE_ENABLED') || 'true');
     setCacheMinutes(byKey('PLACA_FIPE_CACHE_MINUTES') || '1440');
     setFetchOnlyUnknown(byKey('PLACA_FIPE_FETCH_ONLY_UNKNOWN') || 'true');
+    setForceRefreshAfterDays(byKey('PLACA_FIPE_FORCE_REFRESH_AFTER_DAYS') || '730');
     setHeavyTripsRequireValidation(byKey('HEAVY_TRIPS_REQUIRE_VALIDATION') || 'true');
     setReturnSameLocalCancelMinutes(byKey('RETURN_SAME_LOCAL_CANCEL_MINUTES') || '30');
     setTruckSubtypes(byKey('TRUCK_SUBTYPES'));
@@ -88,6 +90,11 @@ export function SettingsPage() {
           key: 'PLACA_FIPE_FETCH_ONLY_UNKNOWN',
           value: fetchOnlyUnknown,
           description: 'Consulta API externa apenas para placas sem dados locais',
+        }),
+        api.post('/settings', {
+          key: 'PLACA_FIPE_FORCE_REFRESH_AFTER_DAYS',
+          value: forceRefreshAfterDays,
+          description: 'Força nova consulta na API após X dias desde a última sincronização externa',
         }),
       ]),
     onSuccess: () => {
@@ -186,6 +193,7 @@ export function SettingsPage() {
           <Input placeholder="Integração habilitada (true/false)" value={enabled} onChange={(e) => setEnabled(e.target.value)} />
           <Input placeholder="Cache em minutos (ex: 1440)" value={cacheMinutes} onChange={(e) => setCacheMinutes(e.target.value)} />
           <Input placeholder="Consultar só desconhecidos (true/false)" value={fetchOnlyUnknown} onChange={(e) => setFetchOnlyUnknown(e.target.value)} />
+          <Input placeholder="Forçar refresh após dias (ex: 730)" value={forceRefreshAfterDays} onChange={(e) => setForceRefreshAfterDays(e.target.value)} />
         </div>
         <div>
           <Button onClick={() => integrationMutation.mutate()} disabled={integrationMutation.isPending}>

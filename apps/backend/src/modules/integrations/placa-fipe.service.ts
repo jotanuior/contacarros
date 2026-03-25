@@ -31,14 +31,24 @@ export class PlacaFipeService {
     );
 
     const fetchOnlyUnknown = await this.settingsService.getBoolean('PLACA_FIPE_FETCH_ONLY_UNKNOWN', true);
-    if (fetchOnlyUnknown && hasLocalVehicleData) {
+    const forceRefreshAfterDays = await this.settingsService.getNumber('PLACA_FIPE_FORCE_REFRESH_AFTER_DAYS', 730);
+    const shouldForceRefresh = forceRefreshAfterDays > 0
+      ? (() => {
+          if (!hasLocalVehicleData) return false;
+          if (!cachedVehicle?.lastApiSyncAt) return true;
+          const refreshLimitDate = new Date(Date.now() - forceRefreshAfterDays * 24 * 60 * 60 * 1000);
+          return cachedVehicle.lastApiSyncAt <= refreshLimitDate;
+        })()
+      : false;
+
+    if (fetchOnlyUnknown && hasLocalVehicleData && !shouldForceRefresh) {
       return cachedVehicle?.apiRawData || null;
     }
 
     const cacheMinutes = await this.settingsService.getNumber('PLACA_FIPE_CACHE_MINUTES', 1440);
     const cacheLimitDate = new Date(Date.now() - cacheMinutes * 60 * 1000);
 
-    if (cachedVehicle?.lastApiSyncAt && cachedVehicle.lastApiSyncAt > cacheLimitDate) {
+    if (!shouldForceRefresh && cachedVehicle?.lastApiSyncAt && cachedVehicle.lastApiSyncAt > cacheLimitDate) {
       return cachedVehicle.apiRawData;
     }
 
