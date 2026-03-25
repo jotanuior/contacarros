@@ -224,13 +224,15 @@ export class TripsService {
       },
     });
 
+    const inconsistentEndLocal = await this.prisma.location.findUnique({ where: { id: input.localId }, select: { name: true } });
+
     await this.alertsService.create({
       type: 'INCONSISTENTE',
       plate: input.plate,
       tripId: inconsistent.id,
       readingId: input.readingId,
       severity: 'ALTA',
-      message: 'Rota sem regra cadastrada',
+      message: `Veículo saiu do ${openTrip.startLocal?.name ?? openTrip.startLocalId} e foi para o ${inconsistentEndLocal?.name ?? input.localId}. Rota sem regra cadastrada.`,
     });
 
     return inconsistent;
