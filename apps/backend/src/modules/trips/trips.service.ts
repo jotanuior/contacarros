@@ -70,6 +70,32 @@ export class TripsService {
     });
 
     if (!openTrip) {
+      const returnSameLocalCancelMinutes = await this.settingsService.getNumber('RETURN_SAME_LOCAL_CANCEL_MINUTES', 30);
+      const latestClosedTrip = await this.prisma.trip.findFirst({
+        where: {
+          plate: input.plate,
+          currentStatus: { not: 'EM_ANDAMENTO' },
+          closedAt: { not: null },
+        },
+        include: {
+          tripEvents: {
+            orderBy: { sequence: 'desc' },
+            take: 1,
+          },
+        },
+        orderBy: { closedAt: 'desc' },
+      });
+
+      if (latestClosedTrip?.closedAt && latestClosedTrip.endLocalId === input.localId) {
+        const lastEvent = latestClosedTrip.tripEvents[0];
+        const sameCameraAsLastEvent = lastEvent ? lastEvent.cameraId === input.cameraId : true;
+        const elapsedSinceCloseMinutes = Math.max(0, (input.capturedAt.getTime() - latestClosedTrip.closedAt.getTime()) / 60000);
+
+        if (sameCameraAsLastEvent && elapsedSinceCloseMinutes <= returnSameLocalCancelMinutes) {
+          return latestClosedTrip;
+        }
+      }
+
       const tripWindowMinutes = await this.settingsService.getNumber('TRIP_WINDOW_MINUTES', 30);
       const expectedUntil = new Date(input.capturedAt.getTime() + tripWindowMinutes * 60 * 1000);
 
@@ -101,7 +127,7 @@ export class TripsService {
 
     const rule = await this.routeRulesService.findRule(openTrip.startLocalId, input.localId);
     const isReturnToOrigin = input.localId === openTrip.startLocalId;
-    const returnSameLocalCancelMinutes = await this.settingsService.getNumber('RETURN_SAME_LOCAL_CANCEL_MINUTES', 30);
+  const returnSameLocalCancelMinutes = await this.settingsService.getNumber('RETURN_SAME_LOCAL_CANCEL_MINUTES', 30);
     const elapsedMinutes = Math.max(0, (input.capturedAt.getTime() - openTrip.startedAt.getTime()) / 60000);
     const sequence = (await this.prisma.tripEvent.count({ where: { tripId: openTrip.id } })) + 1;
 
