@@ -72,7 +72,9 @@ export class AlertsService {
       throw new BadRequestException('Alerta já resolvido');
     }
 
-    if (!alert.tripId || !alert.trip || alert.trip.currentStatus !== 'PENDENTE_VALIDACAO') {
+    const manualDecisionEligibleStatuses = new Set(['PENDENTE_VALIDACAO', 'SEM_SAIDA', 'INCONSISTENTE']);
+
+    if (!alert.tripId || !alert.trip || !manualDecisionEligibleStatuses.has(alert.trip.currentStatus)) {
       throw new BadRequestException('Este alerta não está apto para decisão manual');
     }
 

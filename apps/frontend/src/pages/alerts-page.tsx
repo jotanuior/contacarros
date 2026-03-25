@@ -30,6 +30,7 @@ export function AlertsPage() {
 
   const rows: any[] = data?.data ?? [];
   const totalPages: number = data?.totalPages ?? 1;
+  const isManualDecisionStatus = (status?: string) => ['PENDENTE_VALIDACAO', 'SEM_SAIDA', 'INCONSISTENTE'].includes(status ?? '');
 
   return (
     <div className="space-y-4">
@@ -48,7 +49,7 @@ export function AlertsPage() {
                 <td>
                   {item.isResolved ? (
                     'Resolvido'
-                  ) : item.trip?.currentStatus === 'PENDENTE_VALIDACAO' ? (
+                  ) : isManualDecisionStatus(item.trip?.currentStatus) ? (
                     <div className="space-y-2">
                       <input
                         className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:ring-2 focus:ring-slate-300"
