@@ -83,12 +83,21 @@ export function AlertsPage() {
                         <option value="CAMINHAO">Caminhão</option>
                         <option value="ONIBUS">Ônibus</option>
                       </select>
-                      <Button
-                        disabled={!categoryChoices[item.id] || reclassifyMutation.isPending}
-                        onClick={() => reclassifyMutation.mutate({ id: item.id, categoryType: categoryChoices[item.id] })}
-                      >
-                        Aplicar tipo
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          disabled={!categoryChoices[item.id] || reclassifyMutation.isPending}
+                          onClick={() => reclassifyMutation.mutate({ id: item.id, categoryType: categoryChoices[item.id] })}
+                        >
+                          Aplicar tipo
+                        </Button>
+                        <Button
+                          className="bg-slate-700 hover:bg-slate-600"
+                          disabled={resolveMutation.isPending}
+                          onClick={() => resolveMutation.mutate(item.id)}
+                        >
+                          Resolver
+                        </Button>
+                      </div>
                     </div>
                   ) : isManualDecisionStatus(item.trip?.currentStatus) ? (
                     <div className="space-y-2">
