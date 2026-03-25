@@ -19,6 +19,7 @@ export function SettingsPage() {
   const [enabled, setEnabled] = useState('true');
   const [cacheMinutes, setCacheMinutes] = useState('1440');
   const [heavyTripsRequireValidation, setHeavyTripsRequireValidation] = useState('true');
+  const [returnSameLocalCancelMinutes, setReturnSameLocalCancelMinutes] = useState('30');
   const [truckSubtypes, setTruckSubtypes] = useState('');
   const [busSubtypes, setBusSubtypes] = useState('');
   const [editableRows, setEditableRows] = useState<Record<string, { value: string; description: string }>>({});
@@ -35,6 +36,7 @@ export function SettingsPage() {
     setEnabled(byKey('PLACA_FIPE_ENABLED') || 'true');
     setCacheMinutes(byKey('PLACA_FIPE_CACHE_MINUTES') || '1440');
     setHeavyTripsRequireValidation(byKey('HEAVY_TRIPS_REQUIRE_VALIDATION') || 'true');
+    setReturnSameLocalCancelMinutes(byKey('RETURN_SAME_LOCAL_CANCEL_MINUTES') || '30');
     setTruckSubtypes(byKey('TRUCK_SUBTYPES'));
     setBusSubtypes(byKey('BUS_SUBTYPES'));
 
@@ -122,6 +124,20 @@ export function SettingsPage() {
     },
   });
 
+  const sameLocalCancelWindowMutation = useMutation({
+    mutationFn: async () =>
+      api.post('/settings', {
+        key: 'RETURN_SAME_LOCAL_CANCEL_MINUTES',
+        value: returnSameLocalCancelMinutes,
+        description: 'Minutos para considerar cancelado quando retorna ao mesmo ponto de origem',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-daily'] });
+      queryClient.invalidateQueries({ queryKey: ['trips'] });
+    },
+  });
+
   const rowMutation = useMutation({
     mutationFn: async (payload: { key: string; value: string; description: string }) => api.post('/settings', payload),
     onSuccess: () => {
@@ -201,6 +217,25 @@ export function SettingsPage() {
         <div>
           <Button onClick={() => heavyValidationMutation.mutate()} disabled={heavyValidationMutation.isPending}>
             Salvar regra de validação
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-800">Janela de cancelamento por retorno ao mesmo ponto</h2>
+          <p className="text-sm text-slate-600">Se o veículo sair de A e retornar para A dentro desta janela (minutos), o trajeto será cancelado.</p>
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          <Input
+            placeholder="Minutos (ex: 30)"
+            value={returnSameLocalCancelMinutes}
+            onChange={(e) => setReturnSameLocalCancelMinutes(e.target.value)}
+          />
+        </div>
+        <div>
+          <Button onClick={() => sameLocalCancelWindowMutation.mutate()} disabled={sameLocalCancelWindowMutation.isPending}>
+            Salvar janela de cancelamento
           </Button>
         </div>
       </Card>

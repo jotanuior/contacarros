@@ -100,6 +100,9 @@ export class TripsService {
     }
 
     const rule = await this.routeRulesService.findRule(openTrip.startLocalId, input.localId);
+    const isReturnToOrigin = input.localId === openTrip.startLocalId;
+    const returnSameLocalCancelMinutes = await this.settingsService.getNumber('RETURN_SAME_LOCAL_CANCEL_MINUTES', 30);
+    const elapsedMinutes = Math.max(0, (input.capturedAt.getTime() - openTrip.startedAt.getTime()) / 60000);
     const sequence = (await this.prisma.tripEvent.count({ where: { tripId: openTrip.id } })) + 1;
 
     await this.prisma.tripEvent.create({
@@ -114,6 +117,22 @@ export class TripsService {
     });
 
     if (rule && rule.active) {
+      let resolvedResultType = rule.resultType;
+      let resolvedSeverity = rule.severity;
+      let resolvedDescription = rule.description || rule.resultType;
+
+      if (isReturnToOrigin) {
+        if (elapsedMinutes <= returnSameLocalCancelMinutes) {
+          resolvedResultType = 'CANCELADO';
+          resolvedSeverity = 'BAIXA';
+          resolvedDescription = `Retorno ao mesmo ponto em ${elapsedMinutes.toFixed(1)} min (janela ${returnSameLocalCancelMinutes} min)`;
+        } else if (rule.resultType === 'CANCELADO') {
+          resolvedResultType = 'CONCLUIDO_ATENCAO';
+          resolvedSeverity = 'MEDIA';
+          resolvedDescription = `Retorno ao mesmo ponto após ${elapsedMinutes.toFixed(1)} min (acima da janela ${returnSameLocalCancelMinutes} min)`;
+        }
+      }
+
       const updated = await this.prisma.trip.update({
         where: { id: openTrip.id },
         data: {
@@ -121,30 +140,30 @@ export class TripsService {
           endLocalId: input.localId,
           endedAt: input.capturedAt,
           closedAt: input.capturedAt,
-          currentStatus: rule.resultType,
-          severity: rule.severity,
-          conclusionType: rule.description || rule.resultType,
+          currentStatus: resolvedResultType,
+          severity: resolvedSeverity,
+          conclusionType: resolvedDescription,
         },
       });
 
-      if (rule.resultType === 'CONCLUIDO_ATENCAO') {
+      if (resolvedResultType === 'CONCLUIDO_ATENCAO') {
         await this.alertsService.create({
           type: 'ATENCAO_ROTA',
           plate: input.plate,
           tripId: updated.id,
           readingId: input.readingId,
-          severity: rule.severity,
+          severity: resolvedSeverity,
           message: `Rota de atenção: ${openTrip.startLocalId} -> ${input.localId}`,
         });
       }
 
-      if (rule.resultType === 'CANCELADO') {
+      if (resolvedResultType === 'CANCELADO') {
         await this.alertsService.create({
           type: 'CANCELADO',
           plate: input.plate,
           tripId: updated.id,
           readingId: input.readingId,
-          severity: rule.severity,
+          severity: resolvedSeverity,
           message: `Trajeto cancelado: ${openTrip.startLocalId} -> ${input.localId}`,
         });
       }
