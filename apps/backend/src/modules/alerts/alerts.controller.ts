@@ -46,4 +46,14 @@ export class AlertsController {
   ) {
     return this.alertsService.decide(id, user.sub, body.decision, body.justification);
   }
+
+  @Patch(':id/reclassify-vehicle')
+  @Roles('ADMIN', 'OPERADOR', 'AUDITOR')
+  reclassifyVehicle(
+    @Param('id') id: string,
+    @Body() body: { categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS' },
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.alertsService.reclassifyVehicle(id, user.sub, body.categoryType);
+  }
 }

@@ -7,6 +7,7 @@ import { useState } from 'react';
 export function AlertsPage() {
   const [page, setPage] = useState(1);
   const [justifications, setJustifications] = useState<Record<string, string>>({});
+  const [categoryChoices, setCategoryChoices] = useState<Record<string, 'CARRO' | 'CAMINHAO' | 'ONIBUS'>>({});
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: ['alerts', page],
@@ -15,6 +16,9 @@ export function AlertsPage() {
   const resolveMutation = useMutation({
     mutationFn: async (id: string) => api.patch(`/alerts/${id}/resolve`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['alerts'] }),
+    onError: (error: any) => {
+      window.alert(error?.response?.data?.message ?? 'Falha ao resolver alerta');
+    },
   });
   const decideMutation = useMutation({
     mutationFn: async (payload: { id: string; decision: 'ACEITAR' | 'NEGAR'; justification: string }) =>
@@ -26,11 +30,29 @@ export function AlertsPage() {
       queryClient.invalidateQueries({ queryKey: ['alerts'] });
       setJustifications({});
     },
+    onError: (error: any) => {
+      window.alert(error?.response?.data?.message ?? 'Falha ao decidir alerta');
+    },
+  });
+  const reclassifyMutation = useMutation({
+    mutationFn: async (payload: { id: string; categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS' }) =>
+      api.patch(`/alerts/${payload.id}/reclassify-vehicle`, {
+        categoryType: payload.categoryType,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
+      setCategoryChoices({});
+    },
+    onError: (error: any) => {
+      window.alert(error?.response?.data?.message ?? 'Falha ao recategorizar veículo');
+    },
   });
 
   const rows: any[] = data?.data ?? [];
   const totalPages: number = data?.totalPages ?? 1;
   const isManualDecisionStatus = (status?: string) => ['PENDENTE_VALIDACAO', 'SEM_SAIDA', 'INCONSISTENTE'].includes(status ?? '');
+  const isCategoryReclassificationAlert = (item: any) =>
+    item.type === 'INCONSISTENTE' && typeof item.message === 'string' && item.message.includes('Categoria OUTRO');
 
   return (
     <div className="space-y-4">
@@ -49,6 +71,25 @@ export function AlertsPage() {
                 <td>
                   {item.isResolved ? (
                     'Resolvido'
+                  ) : isCategoryReclassificationAlert(item) ? (
+                    <div className="space-y-2">
+                      <select
+                        className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm outline-none focus:ring-2 focus:ring-slate-300"
+                        value={categoryChoices[item.id] ?? ''}
+                        onChange={(e) => setCategoryChoices((prev) => ({ ...prev, [item.id]: e.target.value as 'CARRO' | 'CAMINHAO' | 'ONIBUS' }))}
+                      >
+                        <option value="">Selecionar tipo</option>
+                        <option value="CARRO">Carro</option>
+                        <option value="CAMINHAO">Caminhão</option>
+                        <option value="ONIBUS">Ônibus</option>
+                      </select>
+                      <Button
+                        disabled={!categoryChoices[item.id] || reclassifyMutation.isPending}
+                        onClick={() => reclassifyMutation.mutate({ id: item.id, categoryType: categoryChoices[item.id] })}
+                      >
+                        Aplicar tipo
+                      </Button>
+                    </div>
                   ) : isManualDecisionStatus(item.trip?.currentStatus) ? (
                     <div className="space-y-2">
                       <input

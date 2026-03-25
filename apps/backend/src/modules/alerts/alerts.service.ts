@@ -110,4 +110,58 @@ export class AlertsService {
       decision,
     };
   }
+
+  async reclassifyVehicle(
+    id: string,
+    userId: string,
+    categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS',
+  ) {
+    const alert = await this.prisma.alert.findUnique({ where: { id } });
+
+    if (!alert) {
+      throw new NotFoundException('Alerta não encontrado');
+    }
+
+    if (alert.isResolved) {
+      throw new BadRequestException('Alerta já resolvido');
+    }
+
+    if (alert.type !== 'INCONSISTENTE' || !alert.message.includes('Categoria OUTRO')) {
+      throw new BadRequestException('Este alerta não é de recategorização de veículo');
+    }
+
+    const vehicle = await this.prisma.vehicle.findUnique({ where: { plate: alert.plate } });
+    if (!vehicle) {
+      throw new NotFoundException('Veículo não encontrado para a placa do alerta');
+    }
+
+    const resolvedAt = new Date();
+
+    await this.prisma.$transaction([
+      this.prisma.vehicle.update({
+        where: { id: vehicle.id },
+        data: { categoryType },
+      }),
+      this.prisma.alert.updateMany({
+        where: {
+          plate: alert.plate,
+          type: 'INCONSISTENTE',
+          isResolved: false,
+          message: { contains: 'Categoria OUTRO' },
+        },
+        data: {
+          isResolved: true,
+          resolvedByUserId: userId,
+          resolvedAt,
+          message: `${alert.message} | Recategorizado para: ${categoryType}`,
+        },
+      }),
+    ]);
+
+    return {
+      plate: alert.plate,
+      categoryType,
+      resolvedAt,
+    };
+  }
 }
