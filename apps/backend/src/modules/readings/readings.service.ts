@@ -119,6 +119,29 @@ export class ReadingsService {
       });
     }
 
+    if (vehicle.categoryType === 'OUTRO') {
+      const existingCategoryAlert = await this.prisma.alert.findFirst({
+        where: {
+          plate: normalizedPlate,
+          type: 'INCONSISTENTE',
+          isResolved: false,
+          message: {
+            contains: 'Categoria OUTRO',
+          },
+        },
+      });
+
+      if (!existingCategoryAlert) {
+        await this.alertsService.create({
+          type: 'INCONSISTENTE',
+          plate: normalizedPlate,
+          readingId: createdReading.id,
+          severity: 'MEDIA',
+          message: `Categoria OUTRO para placa ${normalizedPlate}. Revisar e recategorizar veículo.`,
+        });
+      }
+    }
+
     const minConfidence = await this.settingsService.getNumber('MIN_CONFIDENCE', 0.8);
     if (typeof reading.confidence === 'number' && reading.confidence < minConfidence) {
       await this.alertsService.create({
