@@ -67,6 +67,7 @@ export class TripsService {
     const openTrip = await this.prisma.trip.findFirst({
       where: { plate: input.plate, currentStatus: 'EM_ANDAMENTO' },
       orderBy: { startedAt: 'desc' },
+      include: { startLocal: true },
     });
 
     if (!openTrip) {
@@ -173,13 +174,14 @@ export class TripsService {
       });
 
       if (resolvedResultType === 'CONCLUIDO_ATENCAO') {
+        const endLocal = await this.prisma.location.findUnique({ where: { id: input.localId }, select: { name: true } });
         await this.alertsService.create({
           type: 'ATENCAO_ROTA',
           plate: input.plate,
           tripId: updated.id,
           readingId: input.readingId,
           severity: resolvedSeverity,
-          message: `Rota de atenção: ${openTrip.startLocalId} -> ${input.localId}`,
+          message: `Rota de atenção: ${openTrip.startLocal?.name ?? openTrip.startLocalId} -> ${endLocal?.name ?? input.localId}`,
         });
       }
 
@@ -195,13 +197,14 @@ export class TripsService {
       }
 
       if (resolvedResultType === 'CANCELADO') {
+        const endLocal = await this.prisma.location.findUnique({ where: { id: input.localId }, select: { name: true } });
         await this.alertsService.create({
           type: 'CANCELADO',
           plate: input.plate,
           tripId: updated.id,
           readingId: input.readingId,
           severity: resolvedSeverity,
-          message: `Trajeto cancelado: ${openTrip.startLocalId} -> ${input.localId}`,
+          message: `Trajeto cancelado: ${openTrip.startLocal?.name ?? openTrip.startLocalId} -> ${endLocal?.name ?? input.localId}`,
         });
       }
 
