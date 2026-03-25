@@ -31,7 +31,7 @@ export class PlacaFipeService {
     );
 
     const fetchOnlyUnknown = await this.settingsService.getBoolean('PLACA_FIPE_FETCH_ONLY_UNKNOWN', true);
-    const forceRefreshAfterDays = await this.settingsService.getNumber('PLACA_FIPE_FORCE_REFRESH_AFTER_DAYS', 730);
+    const forceRefreshAfterDays = await this.settingsService.getNumber('PLACA_FIPE_FORCE_REFRESH_AFTER_DAYS', 0);
     const shouldForceRefresh = forceRefreshAfterDays > 0
       ? (() => {
           if (!hasLocalVehicleData) return false;

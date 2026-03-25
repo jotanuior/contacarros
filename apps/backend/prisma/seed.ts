@@ -99,7 +99,7 @@ async function main() {
     { key: 'PLACA_FIPE_CACHE_MINUTES', value: '1440', description: 'Tempo de cache da integração externa' },
     { key: 'PLACA_FIPE_ENABLED', value: 'true', description: 'Habilita integração externa' },
     { key: 'PLACA_FIPE_FETCH_ONLY_UNKNOWN', value: 'true', description: 'Consulta API externa apenas para placas sem dados locais' },
-    { key: 'PLACA_FIPE_FORCE_REFRESH_AFTER_DAYS', value: '730', description: 'Força nova consulta na API após X dias desde a última sincronização externa' },
+    { key: 'PLACA_FIPE_FORCE_REFRESH_AFTER_DAYS', value: '0', description: 'Força nova consulta na API após X dias desde a última sincronização externa (0 desativa)' },
     { key: 'TRUCK_SUBTYPES', value: 'Caminhão pequeno,Caminhão 3/4,Caminhão toco,Caminhão truck,Carreta,Bitrem,Rodotrem,Caminhão grande', description: 'Subtipos de caminhão' },
     { key: 'BUS_SUBTYPES', value: 'Micro-ônibus,Ônibus urbano,Ônibus rodoviário,Ônibus fretado', description: 'Subtipos de ônibus' },
   ];
