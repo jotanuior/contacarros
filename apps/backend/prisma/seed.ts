@@ -1,4 +1,4 @@
-import { PrismaClient, RoleName, SeverityLevel, TripStatus } from '@prisma/client';
+import { PrismaClient, RoleName, SeverityLevel, TripStatus, VehicleCategoryType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -107,6 +107,72 @@ async function main() {
       where: { key: setting.key },
       update: setting,
       create: setting,
+    });
+  }
+
+  const seededVehicles: Array<{
+    plate: string;
+    brand: string;
+    model: string;
+    year: string;
+    categoryType: VehicleCategoryType;
+    segment: string;
+    subSegment: string;
+    fuel: string;
+  }> = [
+    { plate: 'AQS0C25', brand: 'FIAT', model: 'TORO VOLCANO AT D4', year: '2022', categoryType: VehicleCategoryType.CARRO, segment: 'PICKUP', subSegment: 'PICKUP MEDIA', fuel: 'DIESEL' },
+    { plate: 'HLF7090', brand: 'MERCEDES-BENZ', model: 'L 1318', year: '2011', categoryType: VehicleCategoryType.CAMINHAO, segment: 'CAMINHAO', subSegment: 'TOCO', fuel: 'DIESEL' },
+    { plate: 'RIO4B96', brand: 'MERCEDES-BENZ', model: 'INDUSCAR APACHE U', year: '2020', categoryType: VehicleCategoryType.ONIBUS, segment: 'ONIBUS', subSegment: 'URBANO', fuel: 'DIESEL' },
+    { plate: 'BRA2E19', brand: 'VOLKSWAGEN', model: 'VOYAGE 1.6', year: '2021', categoryType: VehicleCategoryType.CARRO, segment: 'SEDAN', subSegment: 'COMPACTO', fuel: 'FLEX' },
+    { plate: 'JLK8A44', brand: 'CHEVROLET', model: 'ONIX LT', year: '2023', categoryType: VehicleCategoryType.CARRO, segment: 'HATCH', subSegment: 'COMPACTO', fuel: 'FLEX' },
+    { plate: 'MNP3D11', brand: 'HYUNDAI', model: 'HB20 COMFORT', year: '2022', categoryType: VehicleCategoryType.CARRO, segment: 'HATCH', subSegment: 'COMPACTO', fuel: 'FLEX' },
+    { plate: 'QWE5F67', brand: 'TOYOTA', model: 'COROLLA XEI', year: '2021', categoryType: VehicleCategoryType.CARRO, segment: 'SEDAN', subSegment: 'MEDIO', fuel: 'FLEX' },
+    { plate: 'RTY9G20', brand: 'HONDA', model: 'CIVIC EXL', year: '2020', categoryType: VehicleCategoryType.CARRO, segment: 'SEDAN', subSegment: 'MEDIO', fuel: 'FLEX' },
+    { plate: 'UIO1H32', brand: 'RENAULT', model: 'DUSTER OROCH', year: '2022', categoryType: VehicleCategoryType.CARRO, segment: 'PICKUP', subSegment: 'LEVE', fuel: 'FLEX' },
+    { plate: 'PAS7J45', brand: 'NISSAN', model: 'KICKS S', year: '2023', categoryType: VehicleCategoryType.CARRO, segment: 'SUV', subSegment: 'COMPACTO', fuel: 'FLEX' },
+    { plate: 'LKJ4K88', brand: 'FORD', model: 'RANGER XLS', year: '2021', categoryType: VehicleCategoryType.CAMINHAO, segment: 'CAMINHAO', subSegment: '3/4', fuel: 'DIESEL' },
+    { plate: 'HGF6L23', brand: 'VOLVO', model: 'VM 270', year: '2019', categoryType: VehicleCategoryType.CAMINHAO, segment: 'CAMINHAO', subSegment: 'TRUCK', fuel: 'DIESEL' },
+    { plate: 'DSA2M14', brand: 'SCANIA', model: 'R 450', year: '2020', categoryType: VehicleCategoryType.CAMINHAO, segment: 'CAMINHAO', subSegment: 'CARRETA', fuel: 'DIESEL' },
+    { plate: 'FGH3N56', brand: 'IVECO', model: 'TECTOR 240E30', year: '2022', categoryType: VehicleCategoryType.CAMINHAO, segment: 'CAMINHAO', subSegment: 'TRUCK', fuel: 'DIESEL' },
+    { plate: 'ZXC8P77', brand: 'MERCEDES-BENZ', model: 'ATEGO 2430', year: '2021', categoryType: VehicleCategoryType.CAMINHAO, segment: 'CAMINHAO', subSegment: 'TRUCK', fuel: 'DIESEL' },
+    { plate: 'BNM5Q10', brand: 'VOLKSWAGEN', model: 'METEOR 29.520', year: '2023', categoryType: VehicleCategoryType.CAMINHAO, segment: 'CAMINHAO', subSegment: 'CARRETA', fuel: 'DIESEL' },
+    { plate: 'QAZ6R21', brand: 'MARCOPolo', model: 'TORINO', year: '2018', categoryType: VehicleCategoryType.ONIBUS, segment: 'ONIBUS', subSegment: 'URBANO', fuel: 'DIESEL' },
+    { plate: 'WSX7S65', brand: 'CAIO', model: 'MILLENNIUM', year: '2019', categoryType: VehicleCategoryType.ONIBUS, segment: 'ONIBUS', subSegment: 'URBANO', fuel: 'DIESEL' },
+    { plate: 'EDC4T39', brand: 'COMIL', model: 'CAMPIONE', year: '2020', categoryType: VehicleCategoryType.ONIBUS, segment: 'ONIBUS', subSegment: 'RODOVIARIO', fuel: 'DIESEL' },
+    { plate: 'RFV9U42', brand: 'VOLARE', model: 'ATTACK 9', year: '2022', categoryType: VehicleCategoryType.ONIBUS, segment: 'ONIBUS', subSegment: 'MICRO', fuel: 'DIESEL' },
+  ];
+
+  for (const vehicle of seededVehicles) {
+    await prisma.vehicle.upsert({
+      where: { plate: vehicle.plate },
+      update: {
+        ...vehicle,
+        lastApiSyncAt: new Date(),
+        apiRawData: {
+          informacoes_veiculo: {
+            marca: vehicle.brand,
+            modelo: vehicle.model,
+            ano_modelo: Number(vehicle.year),
+            segmento: vehicle.segment,
+            sub_segmento: vehicle.subSegment,
+            combustivel: vehicle.fuel,
+          },
+        },
+      },
+      create: {
+        ...vehicle,
+        lastApiSyncAt: new Date(),
+        apiRawData: {
+          informacoes_veiculo: {
+            marca: vehicle.brand,
+            modelo: vehicle.model,
+            ano_modelo: Number(vehicle.year),
+            segmento: vehicle.segment,
+            sub_segmento: vehicle.subSegment,
+            combustivel: vehicle.fuel,
+          },
+        },
+      },
     });
   }
 }

@@ -86,11 +86,21 @@ export class ReadingsService {
     }
 
     let vehicle = await this.vehiclesService.ensure(normalizedPlate);
+    const hasLocalVehicleData = Boolean(
+      vehicle.brand ||
+      vehicle.model ||
+      (vehicle.categoryType && vehicle.categoryType !== 'DESCONHECIDO'),
+    );
 
     const apiData = await this.placaFipeService.fetchVehicleData(normalizedPlate);
     if (apiData) {
       const categoryType = this.placaFipeService.classifyCategory(apiData);
       vehicle = await this.vehiclesService.upsertFromApi(normalizedPlate, apiData, categoryType);
+      await this.prisma.reading.update({
+        where: { id: createdReading.id },
+        data: { vehicleId: vehicle.id, processingStatus: 'PROCESSADO' },
+      });
+    } else if (hasLocalVehicleData) {
       await this.prisma.reading.update({
         where: { id: createdReading.id },
         data: { vehicleId: vehicle.id, processingStatus: 'PROCESSADO' },
