@@ -149,9 +149,9 @@ export class TripsService {
 
       if (isReturnToOrigin) {
         if (elapsedMinutes <= returnSameLocalCancelMinutes) {
-          resolvedResultType = 'CANCELADO';
-          resolvedSeverity = 'BAIXA';
-          resolvedDescription = `Retorno ao mesmo ponto em ${elapsedMinutes.toFixed(1)} min (janela ${returnSameLocalCancelMinutes} min)`;
+          resolvedResultType = 'PENDENTE_VALIDACAO';
+          resolvedSeverity = 'MEDIA';
+          resolvedDescription = `Retorno ao mesmo ponto em ${elapsedMinutes.toFixed(1)} min (janela ${returnSameLocalCancelMinutes} min) - aguardando validação manual`;
         } else if (rule.resultType === 'CANCELADO') {
           resolvedResultType = 'CONCLUIDO_ATENCAO';
           resolvedSeverity = 'MEDIA';
@@ -180,6 +180,17 @@ export class TripsService {
           readingId: input.readingId,
           severity: resolvedSeverity,
           message: `Rota de atenção: ${openTrip.startLocalId} -> ${input.localId}`,
+        });
+      }
+
+      if (resolvedResultType === 'PENDENTE_VALIDACAO') {
+        await this.alertsService.create({
+          type: 'ATENCAO_ROTA',
+          plate: input.plate,
+          tripId: updated.id,
+          readingId: input.readingId,
+          severity: resolvedSeverity,
+          message: `Validação manual necessária: retorno ao mesmo ponto em ${elapsedMinutes.toFixed(1)} min`,
         });
       }
 

@@ -36,4 +36,14 @@ export class AlertsController {
   resolve(@Param('id') id: string, @CurrentUser() user: JwtUser) {
     return this.alertsService.resolve(id, user.sub);
   }
+
+  @Patch(':id/decision')
+  @Roles('ADMIN', 'OPERADOR', 'AUDITOR')
+  decide(
+    @Param('id') id: string,
+    @Body() body: { decision: 'ACEITAR' | 'NEGAR'; justification: string },
+    @CurrentUser() user: JwtUser,
+  ) {
+    return this.alertsService.decide(id, user.sub, body.decision, body.justification);
+  }
 }

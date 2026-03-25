@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { PaginatedResponse, PaginationDto } from '../../common/pagination.dto';
 
@@ -51,5 +51,61 @@ export class AlertsService {
         resolvedAt: new Date(),
       },
     });
+  }
+
+  async decide(id: string, userId: string, decision: 'ACEITAR' | 'NEGAR', justification: string) {
+    const normalizedJustification = justification.trim();
+    if (!normalizedJustification) {
+      throw new BadRequestException('Justificativa é obrigatória');
+    }
+
+    const alert = await this.prisma.alert.findUnique({
+      where: { id },
+      include: { trip: true },
+    });
+
+    if (!alert) {
+      throw new NotFoundException('Alerta não encontrado');
+    }
+
+    if (alert.isResolved) {
+      throw new BadRequestException('Alerta já resolvido');
+    }
+
+    if (!alert.tripId || !alert.trip || alert.trip.currentStatus !== 'PENDENTE_VALIDACAO') {
+      throw new BadRequestException('Este alerta não está apto para decisão manual');
+    }
+
+    const status = decision === 'ACEITAR' ? 'CONCLUIDO_ATENCAO' : 'CANCELADO';
+    const severity = decision === 'ACEITAR' ? 'MEDIA' : 'BAIXA';
+    const notePrefix = `[VALIDACAO_MANUAL:${decision}]`;
+    const noteEntry = `${notePrefix} por ${userId} em ${new Date().toISOString()} - ${normalizedJustification}`;
+
+    const [updatedTrip, updatedAlert] = await this.prisma.$transaction([
+      this.prisma.trip.update({
+        where: { id: alert.tripId },
+        data: {
+          currentStatus: status,
+          severity,
+          conclusionType: decision === 'ACEITAR' ? 'Validado manualmente: aceito' : 'Validado manualmente: negado',
+          notes: alert.trip.notes ? `${alert.trip.notes}\n${noteEntry}` : noteEntry,
+        },
+      }),
+      this.prisma.alert.update({
+        where: { id },
+        data: {
+          isResolved: true,
+          resolvedByUserId: userId,
+          resolvedAt: new Date(),
+          message: `${alert.message} | Decisão: ${decision} | Justificativa: ${normalizedJustification}`,
+        },
+      }),
+    ]);
+
+    return {
+      alert: updatedAlert,
+      trip: updatedTrip,
+      decision,
+    };
   }
 }
