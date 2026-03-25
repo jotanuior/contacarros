@@ -53,6 +53,22 @@ export function AlertsPage() {
   const isManualDecisionStatus = (status?: string) => ['PENDENTE_VALIDACAO', 'SEM_SAIDA', 'INCONSISTENTE'].includes(status ?? '');
   const isCategoryReclassificationAlert = (item: any) =>
     item.type === 'INCONSISTENTE' && typeof item.message === 'string' && item.message.includes('Categoria OUTRO');
+  const getAlertTypeLabel = (item: any) => {
+    if (isCategoryReclassificationAlert(item)) {
+      return 'RECATEGORIZACAO_VEICULO';
+    }
+
+    const labels: Record<string, string> = {
+      SEM_SAIDA: 'SEM_SAIDA',
+      CANCELADO: 'CANCELADO',
+      ATENCAO_ROTA: 'ATENCAO_ROTA',
+      INCONSISTENTE: 'INCONSISTENTE',
+      LEITURA_BAIXA_CONFIANCA: 'BAIXA_CONFIANCA',
+      FALHA_API: 'FALHA_API',
+    };
+
+    return labels[item.type] ?? item.type;
+  };
 
   return (
     <div className="space-y-4">
@@ -64,7 +80,7 @@ export function AlertsPage() {
             {rows.map((item: any) => (
               <tr key={item.id} className="border-t border-slate-100">
                 <td>{formatDateTime(item.createdAt)}</td>
-                <td>{item.type}</td>
+                <td>{getAlertTypeLabel(item)}</td>
                 <td>{item.plate}</td>
                 <td><Badge>{item.severity}</Badge></td>
                 <td>{item.message}</td>
@@ -88,14 +104,14 @@ export function AlertsPage() {
                           disabled={!categoryChoices[item.id] || reclassifyMutation.isPending}
                           onClick={() => reclassifyMutation.mutate({ id: item.id, categoryType: categoryChoices[item.id] })}
                         >
-                          Aplicar tipo
+                          Salvar categoria
                         </Button>
                         <Button
                           className="bg-slate-700 hover:bg-slate-600"
                           disabled={resolveMutation.isPending}
                           onClick={() => resolveMutation.mutate(item.id)}
                         >
-                          Resolver
+                          Resolver sem alterar
                         </Button>
                       </div>
                     </div>
@@ -112,19 +128,19 @@ export function AlertsPage() {
                           disabled={!justifications[item.id]?.trim() || decideMutation.isPending}
                           onClick={() => decideMutation.mutate({ id: item.id, decision: 'ACEITAR', justification: justifications[item.id].trim() })}
                         >
-                          Aceitar
+                          Validar viagem
                         </Button>
                         <Button
                           className="bg-slate-700 hover:bg-slate-600"
                           disabled={!justifications[item.id]?.trim() || decideMutation.isPending}
                           onClick={() => decideMutation.mutate({ id: item.id, decision: 'NEGAR', justification: justifications[item.id].trim() })}
                         >
-                          Negar
+                          Cancelar viagem
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <Button onClick={() => resolveMutation.mutate(item.id)}>Resolver</Button>
+                    <Button onClick={() => resolveMutation.mutate(item.id)}>Marcar resolvido</Button>
                   )}
                 </td>
               </tr>
