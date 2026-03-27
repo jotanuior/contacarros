@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { RouteRulesService } from './route-rules.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
@@ -29,5 +29,28 @@ export class RouteRulesController {
     },
   ) {
     return this.routeRulesService.create(body);
+  }
+
+  @Patch(':id')
+  @Roles('ADMIN')
+  update(
+    @Param('id') id: string,
+    @Body()
+    body: Partial<{
+      originLocalId: string;
+      destinationLocalId: string;
+      resultType: 'CONCLUIDO_OK' | 'CONCLUIDO_ATENCAO' | 'CANCELADO' | 'INCONSISTENTE' | 'PENDENTE_VALIDACAO';
+      severity: 'BAIXA' | 'MEDIA' | 'ALTA' | 'CRITICA';
+      active?: boolean;
+      description?: string;
+    }>,
+  ) {
+    return this.routeRulesService.update(id, body);
+  }
+
+  @Delete(':id')
+  @Roles('ADMIN')
+  remove(@Param('id') id: string) {
+    return this.routeRulesService.remove(id);
   }
 }

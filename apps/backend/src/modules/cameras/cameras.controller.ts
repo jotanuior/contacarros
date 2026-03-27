@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CamerasService } from './cameras.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
@@ -56,5 +56,11 @@ export class CamerasController {
     @CurrentUser() user: JwtUser,
   ) {
     return this.camerasService.update(id, body, user.sub);
+  }
+
+  @Delete(':id')
+  @Roles('ADMIN')
+  remove(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.camerasService.remove(id, user.sub);
   }
 }

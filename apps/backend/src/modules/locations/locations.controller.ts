@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { LocationsService } from './locations.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
@@ -33,5 +33,11 @@ export class LocationsController {
   @Roles('ADMIN')
   update(@Param('id') id: string, @Body() body: { name?: string; code?: string; description?: string; active?: boolean }, @CurrentUser() user: JwtUser) {
     return this.locationsService.update(id, body, user.sub);
+  }
+
+  @Delete(':id')
+  @Roles('ADMIN')
+  remove(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.locationsService.remove(id, user.sub);
   }
 }

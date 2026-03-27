@@ -53,4 +53,21 @@ export class LocationsService {
     });
     return updated;
   }
+
+  async remove(id: string, actorId?: string) {
+    const before = await this.prisma.location.findUnique({ where: { id } });
+    const updated = await this.prisma.location.update({ where: { id }, data: { active: false } });
+
+    await this.auditLogs.create({
+      userId: actorId,
+      action: 'LOCATION_DELETE',
+      entityType: 'Location',
+      entityId: id,
+      description: `Local ${updated.code} desativado`,
+      beforeData: before,
+      afterData: updated,
+    });
+
+    return updated;
+  }
 }

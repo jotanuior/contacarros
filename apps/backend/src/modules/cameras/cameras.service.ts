@@ -65,4 +65,21 @@ export class CamerasService {
     });
     return updated;
   }
+
+  async remove(id: string, actorId?: string) {
+    const before = await this.prisma.camera.findUnique({ where: { id } });
+    const updated = await this.prisma.camera.update({ where: { id }, data: { active: false } });
+
+    await this.auditLogs.create({
+      userId: actorId,
+      action: 'CAMERA_DELETE',
+      entityType: 'Camera',
+      entityId: id,
+      description: `Câmera ${updated.code} desativada`,
+      beforeData: before,
+      afterData: updated,
+    });
+
+    return updated;
+  }
 }

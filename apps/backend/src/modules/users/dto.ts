@@ -28,3 +28,9 @@ export class UpdateUserDto {
   @IsBoolean()
   isActive?: boolean;
 }
+
+export class AdminChangeUserPasswordDto {
+  @IsString()
+  @MinLength(6)
+  newPassword!: string;
+}

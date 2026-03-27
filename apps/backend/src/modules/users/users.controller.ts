@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto } from './dto';
+import { AdminChangeUserPasswordDto, CreateUserDto, UpdateUserDto } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
 import { IpWhitelistGuard } from '../../common/ip-whitelist.guard';
@@ -37,5 +37,19 @@ export class UsersController {
   @UseGuards(IpWhitelistGuard)
   update(@Param('id') id: string, @Body() dto: UpdateUserDto, @CurrentUser() user: JwtUser) {
     return this.usersService.update(id, dto, user.sub);
+  }
+
+  @Patch(':id/password')
+  @Roles('ADMIN')
+  @UseGuards(IpWhitelistGuard)
+  changePassword(@Param('id') id: string, @Body() dto: AdminChangeUserPasswordDto, @CurrentUser() user: JwtUser) {
+    return this.usersService.changePasswordByAdmin(id, dto.newPassword, user.sub);
+  }
+
+  @Patch(':id/deactivate')
+  @Roles('ADMIN')
+  @UseGuards(IpWhitelistGuard)
+  deactivate(@Param('id') id: string, @CurrentUser() user: JwtUser) {
+    return this.usersService.deactivate(id, user.sub);
   }
 }

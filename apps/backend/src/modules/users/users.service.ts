@@ -92,4 +92,44 @@ export class UsersService {
 
     return updated;
   }
+
+  async changePasswordByAdmin(id: string, newPassword: string, actorId?: string) {
+    const existing = await this.prisma.user.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Usuário não encontrado');
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({ where: { id }, data: { passwordHash } });
+
+    await this.auditLogs.create({
+      userId: actorId,
+      action: 'USER_PASSWORD_RESET',
+      entityType: 'User',
+      entityId: id,
+      description: `Senha do usuário ${existing.email} alterada por administrador`,
+    });
+
+    return { success: true };
+  }
+
+  async deactivate(id: string, actorId?: string) {
+    const existing = await this.prisma.user.findUnique({ where: { id }, include: { role: true } });
+    if (!existing) throw new NotFoundException('Usuário não encontrado');
+    if (existing.role.name === 'ADMIN') {
+      throw new BadRequestException('Não é permitido desativar usuário ADMIN');
+    }
+
+    const updated = await this.prisma.user.update({ where: { id }, data: { isActive: false }, include: { role: true } });
+
+    await this.auditLogs.create({
+      userId: actorId,
+      action: 'USER_DEACTIVATE',
+      entityType: 'User',
+      entityId: id,
+      description: `Usuário ${updated.email} desativado`,
+      beforeData: existing,
+      afterData: updated,
+    });
+
+    return updated;
+  }
 }
