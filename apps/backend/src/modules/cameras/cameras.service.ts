@@ -31,6 +31,15 @@ export class CamerasService {
     return this.prisma.camera.findUnique({ where: { code }, include: { location: true } });
   }
 
+  findByCodeOrExternalRef(identifier: string) {
+    return this.prisma.camera.findFirst({
+      where: {
+        OR: [{ code: identifier }, { externalRef: identifier }],
+      },
+      include: { location: true },
+    });
+  }
+
   async create(data: {
     name: string;
     code: string;
