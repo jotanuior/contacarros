@@ -54,21 +54,36 @@ export class IntelbrasController {
   ) {
     this.logIntelbrasRequest('REPORT', request, body, { cameraRef });
 
-    const cameraCode = await this.resolveCameraCode(cameraRef, body, true);
-    if (!cameraCode) {
-      throw new BadRequestException('Não foi possível resolver a câmera Intelbras para a leitura recebida.');
+    try {
+      const cameraCode = await this.resolveCameraCode(cameraRef, body, true);
+      if (!cameraCode) {
+        throw new BadRequestException('Não foi possível resolver a câmera Intelbras para a leitura recebida.');
+      }
+
+      const dto = this.intelbrasAdapterService.toReadingDto(body, cameraCode);
+      const reading = await this.readingsService.ingest(dto);
+
+      return {
+        ok: true,
+        accepted: true,
+        cameraCode,
+        plate: reading?.normalizedPlate ?? dto.plate,
+        readingId: reading?.id ?? null,
+        receivedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'erro desconhecido';
+      this.logger.warn(`Falha ao processar ReportHttpUpload em modo debug: ${message}`);
+
+      return {
+        ok: true,
+        accepted: false,
+        debug: true,
+        reason: message,
+        cameraCode: cameraRef ?? this.intelbrasAdapterService.extractCameraRef(body) ?? null,
+        receivedAt: new Date().toISOString(),
+      };
     }
-
-    const dto = this.intelbrasAdapterService.toReadingDto(body, cameraCode);
-    const reading = await this.readingsService.ingest(dto);
-
-    return {
-      ok: true,
-      cameraCode,
-      plate: reading?.normalizedPlate ?? dto.plate,
-      readingId: reading?.id ?? null,
-      receivedAt: new Date().toISOString(),
-    };
   }
 
   @HttpCode(HttpStatus.OK)
@@ -106,6 +121,24 @@ export class IntelbrasController {
       ok: true,
       cameraCode: cameraRef ?? null,
       heartbeat: true,
+      receivedAt: new Date().toISOString(),
+    };
+  }
+
+  @HttpCode(HttpStatus.OK)
+  @Get(['ReportHttpUpload/:cameraRef', 'ReportHttpUpload'])
+  async receiveReportViaGet(
+    @Param('cameraRef') cameraRef: string | undefined,
+    @Req() request: Request,
+  ) {
+    this.logIntelbrasRequest('REPORT/GET', request, undefined, { cameraRef });
+
+    return {
+      ok: true,
+      accepted: false,
+      debug: true,
+      reason: 'GET recebido em ReportHttpUpload',
+      cameraCode: cameraRef ?? null,
       receivedAt: new Date().toISOString(),
     };
   }
