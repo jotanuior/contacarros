@@ -167,6 +167,29 @@ wait_for_postgres_health() {
   done
 }
 
+wait_for_http_ok() {
+  local url="$1"
+  local label="$2"
+  local timeout_seconds="${3:-90}"
+  local elapsed=0
+
+  echo "🔎 Validando ${label}: ${url}"
+  while true; do
+    if curl -fsS "$url" >/dev/null; then
+      echo "✅ ${label} respondeu com sucesso"
+      return 0
+    fi
+
+    if [[ "$elapsed" -ge "$timeout_seconds" ]]; then
+      echo "❌ Timeout validando ${label} (${timeout_seconds}s): ${url}"
+      return 1
+    fi
+
+    sleep 3
+    elapsed=$((elapsed + 3))
+  done
+}
+
 run_pre_deploy_backup() {
   if [[ "$AUTO_BACKUP" != "true" ]]; then
     return
@@ -374,11 +397,8 @@ main() {
   frontend_health_url="http://127.0.0.1:${frontend_port}/"
 
   if [[ "$DRY_RUN" != "true" ]]; then
-    echo "🔎 Validando backend: ${backend_health_url}"
-    curl -fsS "$backend_health_url" >/dev/null
-
-    echo "🔎 Validando frontend: ${frontend_health_url}"
-    curl -fsS "$frontend_health_url" >/dev/null
+    wait_for_http_ok "$backend_health_url" "backend"
+    wait_for_http_ok "$frontend_health_url" "frontend"
   else
     echo "🧪 [DRY-RUN] Verificações HTTP de backend/frontend serão ignoradas"
   fi
