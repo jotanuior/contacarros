@@ -356,13 +356,21 @@ main() {
   echo "🐳 Atualizando backend/frontend"
   run_cmd docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --no-deps backend frontend
 
-  local backend_port frontend_port backend_health_url frontend_health_url
+  local backend_port frontend_port app_base_path sanitized_base_path backend_health_url frontend_health_url
   backend_port="$(get_env_value BACKEND_PORT)"
   frontend_port="$(get_env_value FRONTEND_PORT)"
+  app_base_path="$(get_env_value APP_BASE_PATH)"
   backend_port="${backend_port:-3001}"
   frontend_port="${frontend_port:-4173}"
+  app_base_path="${app_base_path:-/}"
 
-  backend_health_url="http://127.0.0.1:${backend_port}/health"
+  sanitized_base_path="${app_base_path%/}"
+  if [[ -z "$sanitized_base_path" ]]; then
+    backend_health_url="http://127.0.0.1:${backend_port}/health"
+  else
+    backend_health_url="http://127.0.0.1:${backend_port}${sanitized_base_path}/health"
+  fi
+
   frontend_health_url="http://127.0.0.1:${frontend_port}/"
 
   if [[ "$DRY_RUN" != "true" ]]; then
