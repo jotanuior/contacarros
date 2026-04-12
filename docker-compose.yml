@@ -42,7 +42,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "BASE=\"${APP_BASE_PATH:-/}\"; BASE=\"${BASE%/}\"; [ -z \"$BASE\" ] && URL=\"http://localhost:3000/health\" || URL=\"http://localhost:3000$BASE/health\"; wget -qO- \"$URL\" || exit 1",
+          "BASE=\"${APP_BASE_PATH:-/}\"; BASE=\"$${BASE%/}\"; [ -z \"$$BASE\" ] && URL=\"http://localhost:3000/health\" || URL=\"http://localhost:3000$$BASE/health\"; wget -qO- \"$$URL\" || exit 1",
         ]
       interval: 10s
       timeout: 5s
