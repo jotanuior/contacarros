@@ -54,7 +54,7 @@ services:
       context: ./apps/frontend
       args:
         VITE_APP_BASE_PATH: ${APP_BASE_PATH:-/}
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001/api}
+        VITE_API_URL: ${VITE_API_URL:-/api}
     container_name: contacarros-frontend
     restart: unless-stopped
     depends_on:
@@ -64,7 +64,7 @@ services:
       - "127.0.0.1:${FRONTEND_PORT:-4173}:4173"
     environment:
       VITE_APP_BASE_PATH: ${APP_BASE_PATH:-/}
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:3001/api}
+      VITE_API_URL: ${VITE_API_URL:-/api}
 
 volumes:
   postgres_data:

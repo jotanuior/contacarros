@@ -45,6 +45,11 @@ if [[ ! "$ROOT_MODE" =~ ^[Yy]$ ]]; then
 fi
 BASE_PATH="$(normalize_path "$BASE_PATH_RAW")"
 
+VITE_API_URL="/api"
+if [[ "$BASE_PATH" != "/" ]]; then
+  VITE_API_URL="${BASE_PATH}/api"
+fi
+
 BACKEND_PORT="$(find_free_port 3000)"
 FRONTEND_PORT="$(find_free_port 4173)"
 POSTGRES_PORT="$(find_free_port 5432)"
@@ -66,6 +71,7 @@ PLACA_FIPE_BASE_URL=
 PLACA_FIPE_TOKEN=
 PUBLIC_HOST=${PUBLIC_HOST}
 APP_BASE_PATH=${BASE_PATH}
+VITE_API_URL=${VITE_API_URL}
 CORS_ORIGIN=${CORS_ORIGIN}
 EOF
 
