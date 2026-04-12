@@ -74,10 +74,12 @@ NGINX_FILE="$GENERATED_DIR/contacarros_${SITE_SLUG}.conf"
 API_LOCATION="/api/"
 FRONTEND_LOCATION="/"
 ROOT_REDIRECT=""
+BACKEND_PROXY_PASS="http://127.0.0.1:${BACKEND_PORT}/"
 if [[ "$BASE_PATH" != "/" ]]; then
   API_LOCATION="${BASE_PATH}/api/"
   FRONTEND_LOCATION="${BASE_PATH}/"
   ROOT_REDIRECT="location = ${BASE_PATH} { return 301 ${BASE_PATH}/; }"
+  BACKEND_PROXY_PASS="http://127.0.0.1:${BACKEND_PORT}${BASE_PATH}/"
 fi
 
 cat > "$NGINX_FILE" <<EOF
@@ -88,7 +90,7 @@ server {
     ${ROOT_REDIRECT}
 
     location ${API_LOCATION} {
-        proxy_pass http://127.0.0.1:${BACKEND_PORT}/;
+      proxy_pass ${BACKEND_PROXY_PASS};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
