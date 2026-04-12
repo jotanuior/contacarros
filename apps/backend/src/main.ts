@@ -12,7 +12,13 @@ import {
 } from './modules/auth/cookies';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    rawBody: true,
+  });
+
+  // Define o prefixo global da API (ex: /api)
+  const basePath = process.env.APP_BASE_PATH || '/api';
+  app.setGlobalPrefix(basePath.replace(/^\/+/, ''));
 
   app.useGlobalPipes(
     new ValidationPipe({

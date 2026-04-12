@@ -33,10 +33,18 @@ export class IntelbrasController {
     body: unknown,
     extra: Record<string, unknown> = {},
   ) {
+    const rawBody = (request as Request & { rawBody?: Buffer | string }).rawBody;
+    const rawBodyText =
+      typeof rawBody === 'string'
+        ? rawBody
+        : Buffer.isBuffer(rawBody)
+          ? rawBody.toString('utf8')
+          : undefined;
+
     this.logger.log(
       `[Intelbras ${type}] ip=${request.headers['x-forwarded-for'] || request.ip || request.socket.remoteAddress || '-'} ` +
       `userAgent=${request.headers['user-agent'] || '-'} contentType=${request.headers['content-type'] || '-'} ` +
-      `route=${request.originalUrl || request.url} meta=${this.safeSerialize(extra)} body=${this.safeSerialize(body)}`,
+      `route=${request.originalUrl || request.url} meta=${this.safeSerialize(extra)} body=${this.safeSerialize(body)} rawBody=${this.safeSerialize(rawBodyText)}`,
     );
   }
 
@@ -44,6 +52,8 @@ export class IntelbrasController {
   @Post([
     'integrations/intelbras/report/:cameraRef',
     'integrations/intelbras/report',
+    'intelbras/anpr/:cameraRef',
+    'intelbras/anpr',
     'ReportHttpUpload/:cameraRef',
     'ReportHttpUpload',
   ])
@@ -90,6 +100,8 @@ export class IntelbrasController {
   @Post([
     'integrations/intelbras/keepalive/:cameraRef',
     'integrations/intelbras/keepalive',
+    'intelbras/keepalive/:cameraRef',
+    'intelbras/keepalive',
     'NotificationInfo/KeepAlive/:cameraRef',
     'NotificationInfo/KeepAlive',
   ])
@@ -113,6 +125,8 @@ export class IntelbrasController {
   @Get([
     'integrations/intelbras/keepalive/:cameraRef',
     'integrations/intelbras/keepalive',
+    'intelbras/keepalive/:cameraRef',
+    'intelbras/keepalive',
     'NotificationInfo/KeepAlive/:cameraRef',
     'NotificationInfo/KeepAlive',
   ])
@@ -126,7 +140,12 @@ export class IntelbrasController {
   }
 
   @HttpCode(HttpStatus.OK)
-  @Get(['ReportHttpUpload/:cameraRef', 'ReportHttpUpload'])
+  @Get([
+    'intelbras/anpr/:cameraRef',
+    'intelbras/anpr',
+    'ReportHttpUpload/:cameraRef',
+    'ReportHttpUpload',
+  ])
   async receiveReportViaGet(
     @Param('cameraRef') cameraRef: string | undefined,
     @Req() request: Request,
