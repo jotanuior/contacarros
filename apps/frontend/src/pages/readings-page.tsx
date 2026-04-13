@@ -149,6 +149,15 @@ export function ReadingsPage() {
               src={selectedImage.url}
               alt={`Imagem ampliada ${selectedImage.plate}`}
               className="max-h-[80vh] w-full rounded object-contain"
+              onError={(event) => {
+                const image = event.currentTarget;
+                if (image.dataset.fallbackTried === '1') {
+                  return;
+                }
+
+                image.dataset.fallbackTried = '1';
+                image.src = `${appBasePath}/api/media/vehicles/${selectedImage.plate}.jpg`;
+              }}
             />
           </div>
         </div>
