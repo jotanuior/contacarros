@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { Button, Card, Input, Table } from '../components/ui';
+import { Button, Card, Input, Select, Table } from '../components/ui';
 import { useEffect, useState } from 'react';
 
 type SettingItem = {
@@ -8,6 +8,23 @@ type SettingItem = {
   key: string;
   value: string;
   description?: string | null;
+};
+
+type CameraVehicleTypeItem = {
+  id: string;
+  rawType: string;
+  mappedCategory?: 'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO' | 'DESCONHECIDO' | null;
+  mappedSubtype?: string | null;
+  sampleBrand?: string | null;
+  sampleDirection?: string | null;
+  samplePlateColor?: string | null;
+  occurrenceCount: number;
+  lastSeenAt: string;
+};
+
+type HeavySubtypeOptions = {
+  truckSubtypes: string[];
+  busSubtypes: string[];
 };
 
 export function SettingsPage() {
@@ -25,8 +42,17 @@ export function SettingsPage() {
   const [truckSubtypes, setTruckSubtypes] = useState('');
   const [busSubtypes, setBusSubtypes] = useState('');
   const [editableRows, setEditableRows] = useState<Record<string, { value: string; description: string }>>({});
+  const [cameraTypeRows, setCameraTypeRows] = useState<Record<string, { mappedCategory: string; mappedSubtype: string }>>({});
 
   const { data } = useQuery<SettingItem[]>({ queryKey: ['settings'], queryFn: async () => (await api.get('/settings')).data });
+  const { data: cameraVehicleTypes } = useQuery<CameraVehicleTypeItem[]>({
+    queryKey: ['camera-vehicle-types'],
+    queryFn: async () => (await api.get('/settings/camera-vehicle-types')).data,
+  });
+  const { data: heavySubtypeOptions } = useQuery<HeavySubtypeOptions>({
+    queryKey: ['heavy-subtypes'],
+    queryFn: async () => (await api.get('/heavy-checks/subtypes')).data,
+  });
 
   useEffect(() => {
     if (!data?.length) return;
@@ -54,6 +80,20 @@ export function SettingsPage() {
       }, {}),
     );
   }, [data]);
+
+  useEffect(() => {
+    if (!cameraVehicleTypes?.length) return;
+
+    setCameraTypeRows(
+      cameraVehicleTypes.reduce<Record<string, { mappedCategory: string; mappedSubtype: string }>>((acc, item) => {
+        acc[item.id] = {
+          mappedCategory: item.mappedCategory || '',
+          mappedSubtype: item.mappedSubtype || '',
+        };
+        return acc;
+      }, {}),
+    );
+  }, [cameraVehicleTypes]);
 
   const mutation = useMutation({
     mutationFn: async () => api.post('/settings', { key, value }),
@@ -160,12 +200,35 @@ export function SettingsPage() {
     },
   });
 
+  const cameraTypeMutation = useMutation({
+    mutationFn: async (payload: { id: string; mappedCategory?: string | null; mappedSubtype?: string | null }) =>
+      api.patch(`/settings/camera-vehicle-types/${payload.id}`, {
+        mappedCategory: payload.mappedCategory || null,
+        mappedSubtype: payload.mappedSubtype || null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['camera-vehicle-types'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+    },
+  });
+
   function updateRow(itemId: string, patch: Partial<{ value: string; description: string }>) {
     setEditableRows((current) => ({
       ...current,
       [itemId]: {
         value: current[itemId]?.value ?? '',
         description: current[itemId]?.description ?? '',
+        ...patch,
+      },
+    }));
+  }
+
+  function updateCameraTypeRow(itemId: string, patch: Partial<{ mappedCategory: string; mappedSubtype: string }>) {
+    setCameraTypeRows((current) => ({
+      ...current,
+      [itemId]: {
+        mappedCategory: current[itemId]?.mappedCategory ?? '',
+        mappedSubtype: current[itemId]?.mappedSubtype ?? '',
         ...patch,
       },
     }));
@@ -216,6 +279,88 @@ export function SettingsPage() {
             Salvar subtipos
           </Button>
         </div>
+      </Card>
+
+      <Card className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-800">Tipos recebidos da câmera</h2>
+          <p className="text-sm text-slate-600">
+            Cada tipo novo recebido pela câmera é salvo automaticamente. Aqui o admin define como ele entra no sistema.
+          </p>
+        </div>
+        <Table>
+          <thead>
+            <tr>
+              <th>Tipo da câmera</th>
+              <th>Amostra</th>
+              <th>Qtd.</th>
+              <th>Categoria</th>
+              <th>Subtipo</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(cameraVehicleTypes || []).map((item) => {
+              const current = cameraTypeRows[item.id] || { mappedCategory: '', mappedSubtype: '' };
+              const subtypeOptions = current.mappedCategory === 'CAMINHAO'
+                ? heavySubtypeOptions?.truckSubtypes || []
+                : current.mappedCategory === 'ONIBUS'
+                  ? heavySubtypeOptions?.busSubtypes || []
+                  : [];
+
+              return (
+                <tr key={item.id} className="border-t border-slate-100">
+                  <td>{item.rawType}</td>
+                  <td>
+                    {[item.sampleBrand, item.sampleDirection, item.samplePlateColor].filter(Boolean).join(' / ') || '-'}
+                  </td>
+                  <td>{item.occurrenceCount}</td>
+                  <td>
+                    <Select
+                      value={current.mappedCategory}
+                      onChange={(e) => updateCameraTypeRow(item.id, {
+                        mappedCategory: e.target.value,
+                        mappedSubtype: e.target.value === 'CARRO' ? '' : current.mappedSubtype,
+                      })}
+                    >
+                      <option value="">Sem mapeamento</option>
+                      <option value="CARRO">Carro</option>
+                      <option value="CAMINHAO">Caminhão</option>
+                      <option value="ONIBUS">Ônibus</option>
+                    </Select>
+                  </td>
+                  <td>
+                    {current.mappedCategory === 'CAMINHAO' || current.mappedCategory === 'ONIBUS' ? (
+                      <Select
+                        value={current.mappedSubtype}
+                        onChange={(e) => updateCameraTypeRow(item.id, { mappedSubtype: e.target.value })}
+                      >
+                        <option value="">Selecione</option>
+                        {subtypeOptions.map((subtype) => (
+                          <option key={subtype} value={subtype}>{subtype}</option>
+                        ))}
+                      </Select>
+                    ) : (
+                      <span className="text-sm text-slate-500">-</span>
+                    )}
+                  </td>
+                  <td>
+                    <Button
+                      disabled={cameraTypeMutation.isPending}
+                      onClick={() => cameraTypeMutation.mutate({
+                        id: item.id,
+                        mappedCategory: current.mappedCategory || null,
+                        mappedSubtype: current.mappedCategory === 'CARRO' ? null : current.mappedSubtype || null,
+                      })}
+                    >
+                      Salvar
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </Table>
       </Card>
 
       <Card className="space-y-3">

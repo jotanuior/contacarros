@@ -25,6 +25,22 @@ export class LprReadingDto {
   eventKey?: string;
 
   @IsOptional()
+  @IsString()
+  cameraVehicleType?: string;
+
+  @IsOptional()
+  @IsString()
+  cameraVehicleBrand?: string;
+
+  @IsOptional()
+  @IsString()
+  cameraDirection?: string;
+
+  @IsOptional()
+  @IsString()
+  plateColor?: string;
+
+  @IsOptional()
   @IsObject()
   rawPayload?: Record<string, unknown>;
 }

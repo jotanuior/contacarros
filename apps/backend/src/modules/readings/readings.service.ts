@@ -39,6 +39,10 @@ export class ReadingsService {
     return /^[A-Z]{3}[0-9]{4}$/.test(plate) || /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(plate);
   }
 
+  private shouldApplyCameraTypeMapping(categoryType?: string | null) {
+    return !categoryType || categoryType === 'DESCONHECIDO' || categoryType === 'OUTRO';
+  }
+
   async ingest(reading: LprReadingDto) {
     const normalizedPlate = this.normalizePlate(reading.plate);
 
@@ -125,6 +129,15 @@ export class ReadingsService {
       return createdReading;
     }
 
+    const trackedCameraVehicleType = reading.cameraVehicleType
+      ? await this.settingsService.trackCameraVehicleType({
+          rawType: reading.cameraVehicleType,
+          brand: reading.cameraVehicleBrand,
+          direction: reading.cameraDirection,
+          plateColor: reading.plateColor,
+        })
+      : null;
+
     let vehicle = await this.vehiclesService.ensure(normalizedPlate);
     const hasLocalVehicleData = Boolean(
       vehicle.brand ||
@@ -136,6 +149,21 @@ export class ReadingsService {
     if (apiData) {
       const categoryType = this.placaFipeService.classifyCategory(apiData);
       vehicle = await this.vehiclesService.upsertFromApi(normalizedPlate, apiData, categoryType);
+      if (trackedCameraVehicleType?.mappedCategory && this.shouldApplyCameraTypeMapping(vehicle.categoryType)) {
+        vehicle = await this.vehiclesService.applyCameraTypeMapping(normalizedPlate, {
+          categoryType: trackedCameraVehicleType.mappedCategory as 'CARRO' | 'CAMINHAO' | 'ONIBUS',
+          subtype: trackedCameraVehicleType.mappedSubtype,
+        });
+      }
+      await this.prisma.reading.update({
+        where: { id: createdReading.id },
+        data: { vehicleId: vehicle.id, processingStatus: 'PROCESSADO' },
+      });
+    } else if (trackedCameraVehicleType?.mappedCategory && this.shouldApplyCameraTypeMapping(vehicle.categoryType)) {
+      vehicle = await this.vehiclesService.applyCameraTypeMapping(normalizedPlate, {
+        categoryType: trackedCameraVehicleType.mappedCategory as 'CARRO' | 'CAMINHAO' | 'ONIBUS',
+        subtype: trackedCameraVehicleType.mappedSubtype,
+      });
       await this.prisma.reading.update({
         where: { id: createdReading.id },
         data: { vehicleId: vehicle.id, processingStatus: 'PROCESSADO' },

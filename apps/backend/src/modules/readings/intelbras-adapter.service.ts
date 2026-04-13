@@ -40,6 +40,10 @@ export class IntelbrasAdapterService {
     const confidence = this.extractConfidence(rawPayload);
     const imageUrl = this.extractImageUrl(rawPayload);
     const eventKey = this.extractEventKey(rawPayload);
+    const cameraVehicleType = this.extractVehicleType(rawPayload);
+    const cameraVehicleBrand = this.extractVehicleBrand(rawPayload);
+    const cameraDirection = this.extractDirection(rawPayload);
+    const plateColor = this.extractPlateColor(rawPayload);
 
     return {
       plate,
@@ -48,6 +52,10 @@ export class IntelbrasAdapterService {
       confidence,
       imageUrl,
       eventKey,
+      cameraVehicleType,
+      cameraVehicleBrand,
+      cameraDirection,
+      plateColor,
       rawPayload,
     };
   }
@@ -164,6 +172,34 @@ export class IntelbrasAdapterService {
       this.getString(this.getByPath(payload, ['Picture', 'URL'])),
       this.getString(this.getByPath(payload, ['Picture', 'Url'])),
       this.pickFlatValue(payload, ['imageUrl', 'ImageUrl', 'Picture.URL', 'Picture.Url']),
+    ].find((value): value is string => Boolean(value));
+  }
+
+  private extractVehicleType(payload: Record<string, unknown>): string | undefined {
+    return [
+      this.getString(this.getByPath(payload, ['Picture', 'Vehicle', 'VehicleType'])),
+      this.pickFlatValue(payload, ['Picture.Vehicle.VehicleType', 'VehicleType']),
+    ].find((value): value is string => Boolean(value));
+  }
+
+  private extractVehicleBrand(payload: Record<string, unknown>): string | undefined {
+    return [
+      this.getString(this.getByPath(payload, ['Picture', 'Vehicle', 'VehicleSign'])),
+      this.pickFlatValue(payload, ['Picture.Vehicle.VehicleSign', 'VehicleSign']),
+    ].find((value): value is string => Boolean(value));
+  }
+
+  private extractDirection(payload: Record<string, unknown>): string | undefined {
+    return [
+      this.getString(this.getByPath(payload, ['Picture', 'SnapInfo', 'Direction'])),
+      this.pickFlatValue(payload, ['Picture.SnapInfo.Direction', 'Direction']),
+    ].find((value): value is string => Boolean(value));
+  }
+
+  private extractPlateColor(payload: Record<string, unknown>): string | undefined {
+    return [
+      this.getString(this.getByPath(payload, ['Picture', 'Plate', 'PlateColor'])),
+      this.pickFlatValue(payload, ['Picture.Plate.PlateColor', 'PlateColor']),
     ].find((value): value is string => Boolean(value));
   }
 

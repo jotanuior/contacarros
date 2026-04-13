@@ -150,6 +150,26 @@ model Vehicle {
   updatedAt     DateTime            @updatedAt
 }
 
+model CameraVehicleType {
+  id                String              @id @default(cuid())
+  source            String              @default("INTELBRAS")
+  rawType           String
+  normalizedRawType String
+  mappedCategory    VehicleCategoryType?
+  mappedSubtype     String?
+  sampleBrand       String?
+  sampleDirection   String?
+  samplePlateColor  String?
+  occurrenceCount   Int                 @default(1)
+  firstSeenAt       DateTime            @default(now())
+  lastSeenAt        DateTime            @default(now())
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([source, normalizedRawType])
+  @@index([rawType])
+}
+
 model Reading {
   id               String                  @id @default(cuid())
   plate            String

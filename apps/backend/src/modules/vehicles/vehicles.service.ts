@@ -75,4 +75,24 @@ export class VehiclesService {
       create: { plate },
     });
   }
+
+  async applyCameraTypeMapping(
+    plate: string,
+    mapping: { categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS'; subtype?: string | null },
+  ) {
+    return this.prisma.vehicle.upsert({
+      where: { plate },
+      update: {
+        categoryType: mapping.categoryType,
+        segment: mapping.categoryType === 'CARRO' ? undefined : mapping.categoryType,
+        subSegment: mapping.categoryType === 'CARRO' ? null : mapping.subtype ?? null,
+      },
+      create: {
+        plate,
+        categoryType: mapping.categoryType,
+        segment: mapping.categoryType === 'CARRO' ? undefined : mapping.categoryType,
+        subSegment: mapping.categoryType === 'CARRO' ? null : mapping.subtype ?? null,
+      },
+    });
+  }
 }
