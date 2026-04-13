@@ -137,7 +137,8 @@ export class AlertsService {
 
     const resolvedAt = new Date();
 
-    await this.prisma.$transaction([
+    // Execute transaction and validate results
+    const [updatedVehicle, updateResult] = await this.prisma.$transaction([
       this.prisma.vehicle.update({
         where: { id: vehicle.id },
         data: { categoryType },
@@ -158,10 +159,21 @@ export class AlertsService {
       }),
     ]);
 
+    // Validate that vehicle was actually updated
+    if (!updatedVehicle || updatedVehicle.categoryType !== categoryType) {
+      throw new BadRequestException('Falha ao atualizar categoria do veículo. Tente novamente.');
+    }
+
+    // Validate that at least one alert was resolved
+    if (updateResult.count === 0) {
+      throw new BadRequestException('Nenhum alerta foi disponível para resolver. Alerta pode ter sido resolvido por outro usuário.');
+    }
+
     return {
       plate: alert.plate,
       categoryType,
       resolvedAt,
+      alertsResolved: updateResult.count,
     };
   }
 }
