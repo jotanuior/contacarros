@@ -14,6 +14,26 @@ function toDateTimeLocal(date: Date) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+const appBasePath = (import.meta.env.VITE_APP_BASE_PATH || '/').replace(/\/+$/g, '') || '';
+
+function normalizeReadingImageUrl(imageUrl: string | undefined, plate: string) {
+  const fallback = `${appBasePath}/api/media/vehicles/${plate}.jpg`;
+
+  if (!imageUrl) {
+    return fallback;
+  }
+
+  let fixed = imageUrl
+    .replace('/contacarros/media/', '/contacarros/api/media/')
+    .replace('/media/vehicles/', '/api/media/vehicles/');
+
+  if (fixed.startsWith('/api/')) {
+    fixed = `${appBasePath}${fixed}`;
+  }
+
+  return fixed;
+}
+
 export function ReadingsPage() {
   const [plate, setPlate] = useState('');
   const [page, setPage] = useState(1);
@@ -59,18 +79,31 @@ export function ReadingsPage() {
                     <td>{formatDateTime(item.capturedAt)}</td>
                     <td>
                       <div className="flex items-center gap-2">
-                        {item.imageUrl ? (
+                        {item.imageUrl || item.normalizedPlate ? (
                           <button
                             type="button"
                             className="rounded border border-slate-200"
-                            onClick={() => setSelectedImage({ url: item.imageUrl, plate: item.normalizedPlate })}
+                            onClick={() => setSelectedImage({
+                              url: normalizeReadingImageUrl(item.imageUrl, item.normalizedPlate),
+                              plate: item.normalizedPlate,
+                            })}
                             title="Clique para ampliar"
                           >
                             <img
-                              src={item.imageUrl}
+                              src={normalizeReadingImageUrl(item.imageUrl, item.normalizedPlate)}
                               alt={`Veículo ${item.normalizedPlate}`}
                               className="h-10 w-16 rounded object-cover"
                               loading="lazy"
+                              onError={(event) => {
+                                const image = event.currentTarget;
+                                if (image.dataset.fallbackTried === '1') {
+                                  image.style.display = 'none';
+                                  return;
+                                }
+
+                                image.dataset.fallbackTried = '1';
+                                image.src = `${appBasePath}/api/media/vehicles/${item.normalizedPlate}.jpg`;
+                              }}
                             />
                           </button>
                         ) : null}

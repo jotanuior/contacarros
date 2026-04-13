@@ -4,6 +4,26 @@ import { Badge, Button, Card, Pagination, Table } from '../components/ui';
 import { formatDateTime } from '../lib/utils';
 import { useState } from 'react';
 
+const appBasePath = (import.meta.env.VITE_APP_BASE_PATH || '/').replace(/\/+$/g, '') || '';
+
+function normalizeAlertImageUrl(imageUrl: string | undefined, plate: string) {
+  const fallback = `${appBasePath}/api/media/vehicles/${plate}.jpg`;
+
+  if (!imageUrl) {
+    return fallback;
+  }
+
+  let fixed = imageUrl
+    .replace('/contacarros/media/', '/contacarros/api/media/')
+    .replace('/media/vehicles/', '/api/media/vehicles/');
+
+  if (fixed.startsWith('/api/')) {
+    fixed = `${appBasePath}${fixed}`;
+  }
+
+  return fixed;
+}
+
 export function AlertsPage() {
   const [page, setPage] = useState(1);
   const [justifications, setJustifications] = useState<Record<string, string>>({});
@@ -88,14 +108,29 @@ export function AlertsPage() {
                       <button
                         type="button"
                         className="rounded border border-slate-200"
-                        onClick={() => setSelectedImage({ url: item.reading.imageUrl, plate: item.plate })}
+                        onClick={() =>
+                          setSelectedImage({
+                            url: normalizeAlertImageUrl(item.reading?.imageUrl, item.plate),
+                            plate: item.plate,
+                          })
+                        }
                         title="Clique para ampliar"
                       >
                         <img
-                          src={item.reading.imageUrl}
+                          src={normalizeAlertImageUrl(item.reading?.imageUrl, item.plate)}
                           alt={`Veículo ${item.plate}`}
                           className="h-10 w-16 rounded object-cover"
                           loading="lazy"
+                          onError={(event) => {
+                            const image = event.currentTarget;
+                            if (image.dataset.fallbackTried === '1') {
+                              image.style.display = 'none';
+                              return;
+                            }
+
+                            image.dataset.fallbackTried = '1';
+                            image.src = `${appBasePath}/api/media/vehicles/${item.plate}.jpg`;
+                          }}
                         />
                       </button>
                     ) : null}
