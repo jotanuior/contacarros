@@ -119,7 +119,12 @@ export class IntelbrasAdapterService {
       this.pickFlatValue(payload, ['UTC', 'CreateTime', 'TimeStamp', 'Timestamp', 'Picture.SnapInfo.AccurateTime', 'Picture.SnapInfo.SnapTime']),
     ].find((value) => value !== undefined && value !== null);
 
-    return this.toIsoString(candidate);
+    // Extract timezone offset from payload (0-48 represents UTC-12 to UTC+12 in 30min increments)
+    const timeZoneRaw = this.getByPath(payload, ['Picture', 'SnapInfo', 'TimeZone']) ??
+                         this.getByPath(payload, ['TimeZone']);
+    const timeZoneOffset = typeof timeZoneRaw === 'number' ? timeZoneRaw : undefined;
+
+    return this.toIsoString(candidate, timeZoneOffset);
   }
 
   private extractConfidence(payload: Record<string, unknown>): number | undefined {
@@ -279,7 +284,7 @@ export class IntelbrasAdapterService {
     return trimmed ? trimmed : undefined;
   }
 
-  private toIsoString(value: unknown): string {
+  private toIsoString(value: unknown, timeZoneOffset?: number): string {
     if (typeof value === 'number' && Number.isFinite(value)) {
       const epoch = value > 9999999999 ? value : value * 1000;
       return new Date(epoch).toISOString();
@@ -289,8 +294,21 @@ export class IntelbrasAdapterService {
       const trimmed = value.trim();
       if (trimmed) {
         const utcLike = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-        const candidate = utcLike.test(trimmed) ? `${trimmed.replace(' ', 'T')}Z` : trimmed;
-        const parsed = new Date(candidate);
+        
+        if (utcLike.test(trimmed)) {
+          // Intelbras TimeZone: 0-48 represents UTC-12 to UTC+12 in 30-minute increments
+          // TimeZone 24 = UTC+0, TimeZone 22 = UTC-1, TimeZone 30 = UTC+3, etc.
+          // Formula: UTC offset in hours = (timeZoneOffset - 24) * 0.5
+          const offsetHours = timeZoneOffset !== undefined ? (timeZoneOffset - 24) * 0.5 : 0;
+          
+          // Parse local time and adjust to UTC
+          const local = new Date(`${trimmed.replace(' ', 'T')}`);
+          const utcMs = local.getTime() - offsetHours * 60 * 60 * 1000;
+          
+          return new Date(utcMs).toISOString();
+        }
+
+        const parsed = new Date(trimmed);
         if (!Number.isNaN(parsed.getTime())) {
           return parsed.toISOString();
         }
