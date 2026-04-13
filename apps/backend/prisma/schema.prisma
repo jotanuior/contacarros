@@ -154,6 +154,7 @@ model Reading {
   id               String                  @id @default(cuid())
   plate            String
   normalizedPlate  String
+  eventKey         String?                 @unique
   vehicleId        String?
   vehicle          Vehicle?                @relation(fields: [vehicleId], references: [id])
   cameraId         String

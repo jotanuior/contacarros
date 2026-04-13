@@ -51,6 +51,17 @@ export class ReadingsService {
       throw new BadRequestException('Câmera inválida/inativa');
     }
 
+    if (reading.eventKey) {
+      const existingByEventKey = await this.prisma.reading.findUnique({
+        where: { eventKey: reading.eventKey },
+        include: { vehicle: true, location: true, camera: true },
+      });
+
+      if (existingByEventKey) {
+        return existingByEventKey;
+      }
+    }
+
     const capturedAt = new Date(reading.capturedAt);
     const dedupMinutes = await this.settingsService.getNumber('DEDUP_MINUTES', 2);
     const dedupSince = new Date(capturedAt.getTime() - dedupMinutes * 60 * 1000);
@@ -64,21 +75,43 @@ export class ReadingsService {
       orderBy: { capturedAt: 'desc' },
     });
 
-    const createdReading = await this.prisma.reading.create({
-      data: {
-        plate: reading.plate,
-        normalizedPlate,
-        cameraId: camera.id,
-        localId: camera.locationId,
-        capturedAt,
-        confidence: reading.confidence,
-        imageUrl: reading.imageUrl,
-        rawPayload: (reading.rawPayload || {}) as Prisma.InputJsonValue,
-        isDuplicate: !!duplicateExists,
-        processingStatus: duplicateExists ? 'DUPLICADO' : 'RECEBIDO',
-      },
-      include: { location: true, camera: true },
-    });
+    let createdReading;
+
+    try {
+      createdReading = await this.prisma.reading.create({
+        data: {
+          plate: reading.plate,
+          normalizedPlate,
+          eventKey: reading.eventKey,
+          cameraId: camera.id,
+          localId: camera.locationId,
+          capturedAt,
+          confidence: reading.confidence,
+          imageUrl: reading.imageUrl,
+          rawPayload: (reading.rawPayload || {}) as Prisma.InputJsonValue,
+          isDuplicate: !!duplicateExists,
+          processingStatus: duplicateExists ? 'DUPLICADO' : 'RECEBIDO',
+        },
+        include: { location: true, camera: true },
+      });
+    } catch (error) {
+      if (
+        reading.eventKey &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const existingByEventKey = await this.prisma.reading.findUnique({
+          where: { eventKey: reading.eventKey },
+          include: { vehicle: true, location: true, camera: true },
+        });
+
+        if (existingByEventKey) {
+          return existingByEventKey;
+        }
+      }
+
+      throw error;
+    }
 
     await this.auditLogs.create({
       action: 'LPR_READING_RECEIVED',

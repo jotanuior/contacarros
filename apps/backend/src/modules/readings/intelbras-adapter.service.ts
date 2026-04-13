@@ -39,6 +39,7 @@ export class IntelbrasAdapterService {
     const capturedAt = this.extractCapturedAt(rawPayload);
     const confidence = this.extractConfidence(rawPayload);
     const imageUrl = this.extractImageUrl(rawPayload);
+    const eventKey = this.extractEventKey(rawPayload);
 
     return {
       plate,
@@ -46,8 +47,35 @@ export class IntelbrasAdapterService {
       capturedAt,
       confidence,
       imageUrl,
+      eventKey,
       rawPayload,
     };
+  }
+
+  private extractEventKey(payload: Record<string, unknown>): string | undefined {
+    const deviceId = this.extractCameraRef(payload);
+    const defenceCode = this.getString(this.getByPath(payload, ['Picture', 'SnapInfo', 'DefenceCode']));
+    const uploadNum = this.getByPath(payload, ['Picture', 'Plate', 'UploadNum']);
+    const snapTime = this.getString(this.getByPath(payload, ['Picture', 'SnapInfo', 'SnapTime']));
+    const plate = this.extractPlate(payload);
+
+    if (!deviceId) {
+      return undefined;
+    }
+
+    if (defenceCode) {
+      return `intelbras:${deviceId}:defence:${defenceCode}`;
+    }
+
+    if (uploadNum !== undefined && uploadNum !== null) {
+      return `intelbras:${deviceId}:upload:${String(uploadNum)}`;
+    }
+
+    if (snapTime && plate) {
+      return `intelbras:${deviceId}:snap:${snapTime}:plate:${plate.toUpperCase()}`;
+    }
+
+    return undefined;
   }
 
   private extractPlate(payload: Record<string, unknown>): string | undefined {

@@ -21,6 +21,10 @@ export class LprReadingDto {
   imageUrl?: string;
 
   @IsOptional()
+  @IsString()
+  eventKey?: string;
+
+  @IsOptional()
   @IsObject()
   rawPayload?: Record<string, unknown>;
 }
