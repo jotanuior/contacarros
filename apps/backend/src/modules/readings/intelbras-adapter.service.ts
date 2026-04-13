@@ -320,6 +320,20 @@ export class IntelbrasAdapterService {
     return trimmed ? trimmed : undefined;
   }
 
+  private resolveTimeZoneOffsetHours(timeZoneOffset?: number): number {
+    if (timeZoneOffset === undefined) {
+      return 0;
+    }
+
+    // Intelbras/Dahua cameras commonly report code 22 for GMT-3 (Brasilia time).
+    if (timeZoneOffset === 22) {
+      return -3;
+    }
+
+    // Generic fallback: 24 = UTC+0, each step = 30 minutes.
+    return (timeZoneOffset - 24) * 0.5;
+  }
+
   private toIsoString(value: unknown, timeZoneOffset?: number): string {
     if (typeof value === 'number' && Number.isFinite(value)) {
       const epoch = value > 9999999999 ? value : value * 1000;
@@ -329,18 +343,26 @@ export class IntelbrasAdapterService {
     if (typeof value === 'string') {
       const trimmed = value.trim();
       if (trimmed) {
-        const utcLike = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-        
-        if (utcLike.test(trimmed)) {
-          // Intelbras TimeZone: 0-48 represents UTC-12 to UTC+12 in 30-minute increments
-          // TimeZone 24 = UTC+0, TimeZone 22 = UTC-1, TimeZone 30 = UTC+3, etc.
-          // Formula: UTC offset in hours = (timeZoneOffset - 24) * 0.5
-          const offsetHours = timeZoneOffset !== undefined ? (timeZoneOffset - 24) * 0.5 : 0;
-          
-          // Parse local time and adjust to UTC
-          const local = new Date(`${trimmed.replace(' ', 'T')}`);
-          const utcMs = local.getTime() - offsetHours * 60 * 60 * 1000;
-          
+        const cameraDateLike =
+          /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$/;
+        const matched = trimmed.match(cameraDateLike);
+
+        if (matched) {
+          const [, yyyy, mm, dd, hh, min, ss, msRaw] = matched;
+          const milliseconds = Number((msRaw || '0').padEnd(3, '0'));
+          const localUtcMs = Date.UTC(
+            Number(yyyy),
+            Number(mm) - 1,
+            Number(dd),
+            Number(hh),
+            Number(min),
+            Number(ss),
+            milliseconds,
+          );
+
+          const offsetHours = this.resolveTimeZoneOffsetHours(timeZoneOffset);
+          const utcMs = localUtcMs - offsetHours * 60 * 60 * 1000;
+
           return new Date(utcMs).toISOString();
         }
 
