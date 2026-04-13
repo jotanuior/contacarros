@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ForbiddenException, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { NextFunction, Request, Response } from 'express';
+import express from 'express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import {
@@ -73,6 +74,11 @@ async function bootstrap() {
     origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:5173'],
     credentials: true,
   });
+
+  // Intelbras cameras may send large JSON payloads (e.g. embedded metadata/image references).
+  const bodyLimit = process.env.BODY_LIMIT || '2mb';
+  app.use(express.json({ limit: bodyLimit }));
+  app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
 
   app.use((request: Request, _response: Response, next: NextFunction) => {
     const method = request.method.toUpperCase();
