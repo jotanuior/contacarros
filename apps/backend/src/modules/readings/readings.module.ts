@@ -10,10 +10,11 @@ import { AlertsModule } from '../alerts/alerts.module';
 import { SettingsModule } from '../settings/settings.module';
 import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 import { IntelbrasAdapterService } from './intelbras-adapter.service';
+import { IntelbrasRawService } from './intelbras-raw.service';
 
 @Module({
   imports: [CamerasModule, VehiclesModule, IntegrationsModule, TripsModule, AlertsModule, SettingsModule, AuditLogsModule],
-  providers: [ReadingsService, IntelbrasAdapterService],
+  providers: [ReadingsService, IntelbrasAdapterService, IntelbrasRawService],
   controllers: [ReadingsController, IntelbrasController],
   exports: [ReadingsService],
 })
