@@ -19,6 +19,7 @@ export function ReadingsPage() {
   const [page, setPage] = useState(1);
   const [to, setTo] = useState(() => toDateTimeLocal(new Date()));
   const [from, setFrom] = useState(() => toDateTimeLocal(new Date(Date.now() - 24 * 60 * 60 * 1000)));
+  const [selectedImage, setSelectedImage] = useState<{ url: string; plate: string } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['readings', plate, from, to, page],
@@ -59,12 +60,19 @@ export function ReadingsPage() {
                     <td>
                       <div className="flex items-center gap-2">
                         {item.imageUrl ? (
-                          <img
-                            src={item.imageUrl}
-                            alt={`Veículo ${item.normalizedPlate}`}
-                            className="h-10 w-16 rounded border border-slate-200 object-cover"
-                            loading="lazy"
-                          />
+                          <button
+                            type="button"
+                            className="rounded border border-slate-200"
+                            onClick={() => setSelectedImage({ url: item.imageUrl, plate: item.normalizedPlate })}
+                            title="Clique para ampliar"
+                          >
+                            <img
+                              src={item.imageUrl}
+                              alt={`Veículo ${item.normalizedPlate}`}
+                              className="h-10 w-16 rounded object-cover"
+                              loading="lazy"
+                            />
+                          </button>
                         ) : null}
                         <span>{item.normalizedPlate}</span>
                       </div>
@@ -84,6 +92,34 @@ export function ReadingsPage() {
           </>
         )}
       </Card>
+
+      {selectedImage ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div
+            className="max-h-full w-full max-w-5xl rounded-lg bg-white p-3 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-800">Placa {selectedImage.plate}</h2>
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                onClick={() => setSelectedImage(null)}
+              >
+                Fechar
+              </button>
+            </div>
+            <img
+              src={selectedImage.url}
+              alt={`Imagem ampliada ${selectedImage.plate}`}
+              className="max-h-[80vh] w-full rounded object-contain"
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

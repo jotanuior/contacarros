@@ -8,6 +8,7 @@ export function AlertsPage() {
   const [page, setPage] = useState(1);
   const [justifications, setJustifications] = useState<Record<string, string>>({});
   const [categoryChoices, setCategoryChoices] = useState<Record<string, 'CARRO' | 'CAMINHAO' | 'ONIBUS'>>({});
+  const [selectedImage, setSelectedImage] = useState<{ url: string; plate: string } | null>(null);
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: ['alerts', page],
@@ -81,7 +82,26 @@ export function AlertsPage() {
               <tr key={item.id} className="border-t border-slate-100">
                 <td>{formatDateTime(item.createdAt)}</td>
                 <td>{getAlertTypeLabel(item)}</td>
-                <td>{item.plate}</td>
+                <td>
+                  <div className="flex items-center gap-2">
+                    {item.reading?.imageUrl ? (
+                      <button
+                        type="button"
+                        className="rounded border border-slate-200"
+                        onClick={() => setSelectedImage({ url: item.reading.imageUrl, plate: item.plate })}
+                        title="Clique para ampliar"
+                      >
+                        <img
+                          src={item.reading.imageUrl}
+                          alt={`Veículo ${item.plate}`}
+                          className="h-10 w-16 rounded object-cover"
+                          loading="lazy"
+                        />
+                      </button>
+                    ) : null}
+                    <span>{item.plate}</span>
+                  </div>
+                </td>
                 <td><Badge>{item.severity}</Badge></td>
                 <td>{item.message}</td>
                 <td>
@@ -149,6 +169,34 @@ export function AlertsPage() {
         </Table>
         <Pagination page={page} totalPages={totalPages} onPage={setPage} />
       </Card>
+
+      {selectedImage ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div
+            className="max-h-full w-full max-w-5xl rounded-lg bg-white p-3 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-800">Placa {selectedImage.plate}</h2>
+              <button
+                type="button"
+                className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                onClick={() => setSelectedImage(null)}
+              >
+                Fechar
+              </button>
+            </div>
+            <img
+              src={selectedImage.url}
+              alt={`Imagem ampliada ${selectedImage.plate}`}
+              className="max-h-[80vh] w-full rounded object-contain"
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
