@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import { PrismaService } from '../../common/prisma.service';
 import { PaginatedResponse, PaginationDto } from '../../common/pagination.dto';
 import { LprReadingDto } from './dto';
@@ -43,6 +45,104 @@ export class ReadingsService {
     return !categoryType || categoryType === 'DESCONHECIDO' || categoryType === 'OUTRO';
   }
 
+  private getByPath(source: unknown, segments: Array<string | number>): unknown {
+    let current: unknown = source;
+
+    for (const segment of segments) {
+      if (current === null || current === undefined) {
+        return undefined;
+      }
+
+      if (typeof segment === 'number') {
+        if (!Array.isArray(current)) {
+          return undefined;
+        }
+
+        current = current[segment];
+        continue;
+      }
+
+      if (typeof current !== 'object') {
+        return undefined;
+      }
+
+      current = (current as Record<string, unknown>)[segment];
+    }
+
+    return current;
+  }
+
+  private getMediaBasePath() {
+    const basePath = process.env.APP_BASE_PATH || '/api';
+    if (!basePath || basePath === '/') {
+      return '';
+    }
+
+    return `/${basePath.replace(/^\/+|\/+$/g, '')}`;
+  }
+
+  private getPlateImageUrl(plate: string) {
+    return `${this.getMediaBasePath()}/media/vehicles/${plate}.jpg`;
+  }
+
+  private async persistCameraImageIfMissing(plate: string, rawPayload?: Record<string, unknown>) {
+    if (!rawPayload) {
+      return undefined;
+    }
+
+    const candidates = [
+      this.getByPath(rawPayload, ['Picture', 'NormalPic', 'Content']),
+      this.getByPath(rawPayload, ['Picture', 'PlatePic', 'Content']),
+      this.getByPath(rawPayload, ['Picture', 'PicInfo', 'Content']),
+    ];
+
+    const base64Content = candidates.find(
+      (item): item is string => typeof item === 'string' && item.trim().length > 100,
+    );
+
+    if (!base64Content) {
+      return undefined;
+    }
+
+    const sanitized = base64Content.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, '').replace(/\s+/g, '');
+    if (!sanitized) {
+      return undefined;
+    }
+
+    const outputDir = path.join(process.cwd(), 'storage', 'media', 'vehicles');
+    const filePath = path.join(outputDir, `${plate}.jpg`);
+
+    await fs.mkdir(outputDir, { recursive: true });
+
+    try {
+      await fs.access(filePath);
+      return this.getPlateImageUrl(plate);
+    } catch {
+      // File does not exist; continue and create it.
+    }
+
+    let imageBuffer: Buffer;
+    try {
+      imageBuffer = Buffer.from(sanitized, 'base64');
+    } catch {
+      return undefined;
+    }
+
+    if (!imageBuffer.length) {
+      return undefined;
+    }
+
+    try {
+      await fs.writeFile(filePath, imageBuffer, { flag: 'wx' });
+    } catch (error: unknown) {
+      if (!(error instanceof Error) || !('code' in error) || (error as { code?: string }).code !== 'EEXIST') {
+        throw error;
+      }
+    }
+
+    return this.getPlateImageUrl(plate);
+  }
+
   async ingest(reading: LprReadingDto) {
     const normalizedPlate = this.normalizePlate(reading.plate);
 
@@ -69,6 +169,8 @@ export class ReadingsService {
     const capturedAt = new Date(reading.capturedAt);
     const dedupMinutes = await this.settingsService.getNumber('DEDUP_MINUTES', 2);
     const dedupSince = new Date(capturedAt.getTime() - dedupMinutes * 60 * 1000);
+    const plateImageUrl = await this.persistCameraImageIfMissing(normalizedPlate, reading.rawPayload);
+    const imageUrl = reading.imageUrl || plateImageUrl;
 
     const duplicateExists = await this.prisma.reading.findFirst({
       where: {
@@ -91,7 +193,7 @@ export class ReadingsService {
           localId: camera.locationId,
           capturedAt,
           confidence: reading.confidence,
-          imageUrl: reading.imageUrl,
+          imageUrl,
           rawPayload: (reading.rawPayload || {}) as Prisma.InputJsonValue,
           isDuplicate: !!duplicateExists,
           processingStatus: duplicateExists ? 'DUPLICADO' : 'RECEBIDO',

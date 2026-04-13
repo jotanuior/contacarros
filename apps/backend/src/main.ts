@@ -4,6 +4,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { NextFunction, Request, Response } from 'express';
 import express from 'express';
 import helmet from 'helmet';
+import * as path from 'path';
 import { AppModule } from './app.module';
 import {
   getAccessCookieName,
@@ -79,6 +80,10 @@ async function bootstrap() {
   const bodyLimit = process.env.BODY_LIMIT || '2mb';
   app.use(express.json({ limit: bodyLimit }));
   app.use(express.urlencoded({ extended: true, limit: bodyLimit }));
+
+  const normalizedBasePath = basePath === '/' ? '' : `/${basePath.replace(/^\/+|\/+$/g, '')}`;
+  const mediaRoot = path.join(process.cwd(), 'storage', 'media');
+  app.use(`${normalizedBasePath}/media`, express.static(mediaRoot));
 
   app.use((request: Request, _response: Response, next: NextFunction) => {
     const method = request.method.toUpperCase();

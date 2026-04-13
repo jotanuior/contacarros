@@ -56,7 +56,19 @@ export function ReadingsPage() {
                 {rows.map((item: any) => (
                   <tr key={item.id} className="border-t border-slate-100">
                     <td>{formatDateTime(item.capturedAt)}</td>
-                    <td>{item.normalizedPlate}</td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        {item.imageUrl ? (
+                          <img
+                            src={item.imageUrl}
+                            alt={`Veículo ${item.normalizedPlate}`}
+                            className="h-10 w-16 rounded border border-slate-200 object-cover"
+                            loading="lazy"
+                          />
+                        ) : null}
+                        <span>{item.normalizedPlate}</span>
+                      </div>
+                    </td>
                     <td>{`${item.vehicle?.brand || '-'} ${item.vehicle?.model || ''}`}</td>
                     <td>{item.vehicle?.categoryType || '-'}</td>
                     <td>{item.location?.name}</td>
