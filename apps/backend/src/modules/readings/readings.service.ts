@@ -75,10 +75,15 @@ export class ReadingsService {
   private getMediaBasePath() {
     const basePath = process.env.APP_BASE_PATH || '/api';
     if (!basePath || basePath === '/') {
-      return '';
+      return '/api';
     }
 
-    return `/${basePath.replace(/^\/+|\/+$/g, '')}`;
+    const normalized = `/${basePath.replace(/^\/+|\/+$/g, '')}`;
+    if (normalized.endsWith('/api')) {
+      return normalized;
+    }
+
+    return `${normalized}/api`;
   }
 
   private getPlateImageUrl(plate: string) {
