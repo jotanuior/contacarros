@@ -15,6 +15,8 @@
 
 import { Injectable, Logger } from '@nestjs/common';
 import type { Request } from 'express';
+import * as fs from 'fs';
+import * as path from 'path';
 import { CamerasService } from '../cameras/cameras.service';
 import { IntelbrasAdapterService } from './intelbras-adapter.service';
 import { ReadingsService } from './readings.service';
@@ -35,12 +37,19 @@ export interface IntelbrasRawCapture {
 @Injectable()
 export class IntelbrasRawService {
   private readonly logger = new Logger(IntelbrasRawService.name);
+  private readonly payloadLogDir: string;
 
   constructor(
     private readonly adapter: IntelbrasAdapterService,
     private readonly readingsService: ReadingsService,
     private readonly camerasService: CamerasService,
-  ) {}
+  ) {
+    // Create log directory for payloads
+    this.payloadLogDir = path.join(process.cwd(), 'logs', 'intelbras-payloads');
+    if (!fs.existsSync(this.payloadLogDir)) {
+      fs.mkdirSync(this.payloadLogDir, { recursive: true });
+    }
+  }
 
   /**
    * Extrai todos os dados brutos da request antes de enviar "OK" ao cliente.
@@ -107,6 +116,9 @@ export class IntelbrasRawService {
       this.logger.debug(`[Intelbras ${type}] rawBody=${capture.rawBody.slice(0, 2000)}`);
     }
 
+    // Save full payload to file for later analysis
+    this.dumpPayloadToFile(type, capture);
+
     if (type === 'REPORT') {
       // Fire-and-forget: processa após a resposta HTTP já ter sido enviada
       setImmediate(() => {
@@ -115,6 +127,38 @@ export class IntelbrasRawService {
           this.logger.warn(`[Intelbras REPORT] processamento assíncrono falhou: ${msg}`);
         });
       });
+    }
+  }
+
+  /**
+   * Salva o payload completo em arquivo para inspeção posterior
+   */
+  private dumpPayloadToFile(type: 'KEEPALIVE' | 'REPORT', capture: IntelbrasRawCapture): void {
+    try {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `${timestamp}_${type}_${capture.cameraRef || 'unknown'}.json`;
+      const filepath = path.join(this.payloadLogDir, filename);
+
+      const dump = {
+        type,
+        timestamp: capture.capturedAt,
+        method: capture.method,
+        path: capture.path,
+        ip: capture.ip,
+        cameraRef: capture.cameraRef,
+        contentType: capture.contentType,
+        headers: capture.headers,
+        query: capture.query,
+        body: capture.parsedBody,
+        rawBody: capture.rawBody,
+      };
+
+      fs.writeFileSync(filepath, JSON.stringify(dump, null, 2));
+
+      this.logger.debug(`[Intelbras ${type}] payload saved to ${filepath}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`[Intelbras] Failed to dump payload: ${msg}`);
     }
   }
 
