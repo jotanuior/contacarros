@@ -11,9 +11,18 @@ export class IntelbrasAdapterService {
       this.getString(this.getByPath(body, ['cameraId'])),
       this.getString(this.getByPath(body, ['deviceId'])),
       this.getString(this.getByPath(body, ['DeviceID'])),
+      this.getString(this.getByPath(body, ['Picture', 'SnapInfo', 'DeviceID'])),
+      this.getString(this.getByPath(body, ['Picture', 'SnapInfo', 'deviceId'])),
       this.getString(this.getByPath(body, ['serialNo'])),
       this.getString(this.getByPath(body, ['SerialNo'])),
       this.pickFlatValue(body, ['cameraCode', 'CameraCode', 'cameraId', 'CameraID', 'deviceId', 'DeviceID', 'serialNo', 'SerialNo']),
+      this.findValueRecursive(body, (key, value) => {
+        if (!/(^deviceid$|^device_id$|^deviceid$|^serialno$)/i.test(key)) {
+          return undefined;
+        }
+
+        return this.getString(value);
+      }),
     ].filter((value): value is string => Boolean(value));
 
     return direct[0];
@@ -44,11 +53,13 @@ export class IntelbrasAdapterService {
   private extractPlate(payload: Record<string, unknown>): string | undefined {
     const direct = [
       this.getString(this.getByPath(payload, ['TrafficCar', 'PlateNumber'])),
+      this.getString(this.getByPath(payload, ['Picture', 'Plate', 'PlateNumber'])),
       this.getString(this.getByPath(payload, ['Events', 0, 'TrafficCar', 'PlateNumber'])),
       this.getString(this.getByPath(payload, ['Object', 'TrafficCar', 'PlateNumber'])),
       this.getString(this.getByPath(payload, ['PlateNumber'])),
       this.pickFlatValue(payload, [
         'TrafficCar.PlateNumber',
+        'Picture.Plate.PlateNumber',
         'Events[0].TrafficCar.PlateNumber',
         'Events[0].TrafficCar.PlateNo',
         'PlateNumber',
@@ -73,9 +84,11 @@ export class IntelbrasAdapterService {
       this.getByPath(payload, ['CreateTime']),
       this.getByPath(payload, ['TimeStamp']),
       this.getByPath(payload, ['Timestamp']),
+      this.getByPath(payload, ['Picture', 'SnapInfo', 'AccurateTime']),
+      this.getByPath(payload, ['Picture', 'SnapInfo', 'SnapTime']),
       this.getByPath(payload, ['Events', 0, 'UTC']),
       this.getByPath(payload, ['TrafficCar', 'Time']),
-      this.pickFlatValue(payload, ['UTC', 'CreateTime', 'TimeStamp', 'Timestamp']),
+      this.pickFlatValue(payload, ['UTC', 'CreateTime', 'TimeStamp', 'Timestamp', 'Picture.SnapInfo.AccurateTime', 'Picture.SnapInfo.SnapTime']),
     ].find((value) => value !== undefined && value !== null);
 
     return this.toIsoString(candidate);
@@ -84,10 +97,11 @@ export class IntelbrasAdapterService {
   private extractConfidence(payload: Record<string, unknown>): number | undefined {
     const raw = [
       this.getByPath(payload, ['TrafficCar', 'Confidence']),
+      this.getByPath(payload, ['Picture', 'Plate', 'Confidence']),
       this.getByPath(payload, ['Events', 0, 'TrafficCar', 'Confidence']),
       this.getByPath(payload, ['confidence']),
       this.getByPath(payload, ['Confidence']),
-      this.pickFlatValue(payload, ['TrafficCar.Confidence', 'Events[0].TrafficCar.Confidence', 'confidence', 'Confidence']),
+      this.pickFlatValue(payload, ['TrafficCar.Confidence', 'Picture.Plate.Confidence', 'Events[0].TrafficCar.Confidence', 'confidence', 'Confidence']),
     ].find((value) => value !== undefined && value !== null);
 
     if (raw === undefined || raw === null) {
