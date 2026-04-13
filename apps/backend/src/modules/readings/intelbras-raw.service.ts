@@ -23,6 +23,7 @@ export interface IntelbrasRawCapture {
   method: string;
   path: string;
   ip: string;
+  headers: Record<string, string>;
   contentType: string | undefined;
   query: Record<string, unknown>;
   rawBody: string;
@@ -70,6 +71,7 @@ export class IntelbrasRawService {
         request.ip ??
         request.socket?.remoteAddress ??
         '-',
+      headers: this.toSafeHeaders(request.headers),
       contentType: request.headers['content-type'],
       query: request.query as Record<string, unknown>,
       rawBody,
@@ -96,6 +98,10 @@ export class IntelbrasRawService {
         `path=${capture.path} contentType=${capture.contentType ?? '-'} ` +
         `cameraRef=${capture.cameraRef ?? '-'} rawBodyLen=${capture.rawBody.length}`,
     );
+
+    this.logger.debug(`[Intelbras ${type}] headers=${this.safeJson(capture.headers)}`);
+    this.logger.debug(`[Intelbras ${type}] query=${this.safeJson(capture.query)}`);
+    this.logger.debug(`[Intelbras ${type}] body=${this.safeJson(capture.parsedBody)}`);
 
     if (capture.rawBody) {
       this.logger.debug(`[Intelbras ${type}] rawBody=${capture.rawBody.slice(0, 2000)}`);
@@ -147,5 +153,39 @@ export class IntelbrasRawService {
 
     // Fallback: usa o valor bruto (câmera pode não estar cadastrada ainda)
     return candidates[0];
+  }
+
+  private toSafeHeaders(headers: Request['headers']): Record<string, string> {
+    const safe: Record<string, string> = {};
+
+    for (const [key, value] of Object.entries(headers)) {
+      const lowerKey = key.toLowerCase();
+
+      if (lowerKey === 'authorization' || lowerKey === 'cookie' || lowerKey === 'set-cookie') {
+        safe[key] = '[redacted]';
+        continue;
+      }
+
+      if (Array.isArray(value)) {
+        safe[key] = value.join(', ');
+        continue;
+      }
+
+      safe[key] = value ?? '';
+    }
+
+    return safe;
+  }
+
+  private safeJson(value: unknown): string {
+    try {
+      const text = JSON.stringify(value);
+      if (!text) {
+        return '';
+      }
+      return text.length > 4000 ? `${text.slice(0, 4000)}...[truncated]` : text;
+    } catch {
+      return '[unserializable]';
+    }
   }
 }

@@ -1,6 +1,17 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Post,
+  Query,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ReadingsService } from './readings.service';
-import { LprReadingBatchDto, LprReadingDto } from './dto';
+import { ImportIntelbrasCsvDto, LprReadingBatchDto, LprReadingDto } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
 import { Roles } from '../../common/roles.decorator';
@@ -18,6 +29,26 @@ export class ReadingsController {
   @Post('batch')
   createBatch(@Body() dto: LprReadingBatchDto) {
     return this.readingsService.ingestBatch(dto.readings || []);
+  }
+
+  @Post('import/intelbras-csv')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'OPERADOR')
+  @UseInterceptors(FileInterceptor('file'))
+  importIntelbrasCsv(
+    @UploadedFile() file: { buffer?: Buffer } | undefined,
+    @Body() body: ImportIntelbrasCsvDto,
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Arquivo CSV não enviado. Use multipart/form-data com campo file.');
+    }
+
+    return this.readingsService.importIntelbrasCsv({
+      csvText: file.buffer.toString('utf8'),
+      cameraCode: body.cameraCode,
+      delimiter: body.delimiter,
+      defaultConfidence: body.defaultConfidence,
+    });
   }
 
   @Get()

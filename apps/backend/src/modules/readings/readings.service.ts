@@ -11,6 +11,13 @@ import { AlertsService } from '../alerts/alerts.service';
 import { SettingsService } from '../settings/settings.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
+type ImportIntelbrasCsvInput = {
+  csvText: string;
+  cameraCode: string;
+  delimiter?: string;
+  defaultConfidence?: number;
+};
+
 @Injectable()
 export class ReadingsService {
   constructor(
@@ -185,6 +192,138 @@ export class ReadingsService {
     }
 
     return results;
+  }
+
+  async importIntelbrasCsv(input: ImportIntelbrasCsvInput) {
+    const csvText = input.csvText?.trim();
+    if (!csvText) {
+      throw new BadRequestException('CSV vazio');
+    }
+
+    const delimiter = input.delimiter || this.detectDelimiter(csvText);
+    const lines = csvText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    if (lines.length < 2) {
+      throw new BadRequestException('CSV sem linhas de dados');
+    }
+
+    const headers = this.parseCsvLine(lines[0], delimiter).map((h) => h.trim().toLowerCase());
+    const plateIdx = headers.findIndex((h) => h === 'placa');
+    const timeIdx = headers.findIndex((h) => h === 'tempo');
+
+    if (plateIdx < 0 || timeIdx < 0) {
+      throw new BadRequestException('CSV Intelbras inválido: colunas "Placa" e "Tempo" são obrigatórias');
+    }
+
+    const readings: LprReadingDto[] = [];
+
+    for (let i = 1; i < lines.length; i += 1) {
+      const row = this.parseCsvLine(lines[i], delimiter);
+      const plate = (row[plateIdx] || '').trim();
+      const timeRaw = (row[timeIdx] || '').trim();
+
+      if (!plate || !timeRaw) {
+        continue;
+      }
+
+      const capturedAt = this.parseIntelbrasDate(timeRaw);
+      if (!capturedAt) {
+        continue;
+      }
+
+      readings.push({
+        plate,
+        cameraCode: input.cameraCode,
+        capturedAt,
+        confidence: input.defaultConfidence,
+        rawPayload: {
+          source: 'intelbras_csv_import',
+          rowNumber: i + 1,
+          row,
+        },
+      });
+    }
+
+    if (!readings.length) {
+      throw new BadRequestException('Nenhuma leitura válida encontrada no CSV');
+    }
+
+    const results = await this.ingestBatch(readings);
+    const successCount = results.filter((r) => r.success).length;
+    const failedCount = results.length - successCount;
+
+    return {
+      totalRows: lines.length - 1,
+      parsedReadings: readings.length,
+      imported: successCount,
+      failed: failedCount,
+      errors: results.filter((r) => !r.success).slice(0, 20),
+    };
+  }
+
+  private detectDelimiter(csvText: string): string {
+    const firstLine = csvText.split(/\r?\n/, 1)[0] || '';
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
+    return semicolonCount > commaCount ? ';' : ',';
+  }
+
+  private parseCsvLine(line: string, delimiter: string): string[] {
+    const fields: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i += 1) {
+      const ch = line[i];
+      const next = line[i + 1];
+
+      if (ch === '"') {
+        if (inQuotes && next === '"') {
+          current += '"';
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+
+      if (!inQuotes && ch === delimiter) {
+        fields.push(current.trim());
+        current = '';
+        continue;
+      }
+
+      current += ch;
+    }
+
+    fields.push(current.trim());
+    return fields;
+  }
+
+  private parseIntelbrasDate(input: string): string | undefined {
+    const match = input.match(/^(\d{2})-(\d{2})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
+    if (!match) {
+      return undefined;
+    }
+
+    const [, dd, mm, yyyy, hh, mi, ss] = match;
+    const date = new Date(
+      Number(yyyy),
+      Number(mm) - 1,
+      Number(dd),
+      Number(hh),
+      Number(mi),
+      Number(ss),
+    );
+
+    if (Number.isNaN(date.getTime())) {
+      return undefined;
+    }
+
+    return date.toISOString();
   }
 
   async list(

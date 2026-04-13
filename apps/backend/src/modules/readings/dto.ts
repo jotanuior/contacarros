@@ -28,3 +28,18 @@ export class LprReadingDto {
 export class LprReadingBatchDto {
   readings!: LprReadingDto[];
 }
+
+export class ImportIntelbrasCsvDto {
+  @IsString()
+  cameraCode!: string;
+
+  @IsOptional()
+  @IsString()
+  delimiter?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  defaultConfidence?: number;
+}
