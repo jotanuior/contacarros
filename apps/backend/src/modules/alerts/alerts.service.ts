@@ -126,7 +126,7 @@ export class AlertsService {
       throw new BadRequestException('Alerta já resolvido');
     }
 
-    if (alert.type !== 'INCONSISTENTE' || !alert.message.includes('Categoria OUTRO')) {
+    if (alert.type !== 'INCONSISTENTE') {
       throw new BadRequestException('Este alerta não é de recategorização de veículo');
     }
 
@@ -148,7 +148,6 @@ export class AlertsService {
           plate: alert.plate,
           type: 'INCONSISTENTE',
           isResolved: false,
-          message: { contains: 'Categoria OUTRO' },
         },
         data: {
           isResolved: true,
