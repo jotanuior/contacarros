@@ -29,14 +29,14 @@ export class VehiclesController {
   @Roles('ADMIN', 'OPERADOR')
   async categorize(
     @Param('plate') plate: string,
-    @Body() body: { categoryType: string },
+    @Body() body: { categoryType: string; subSegment?: string },
   ) {
     const allowed = ['CARRO', 'CAMINHAO', 'ONIBUS', 'OUTRO'];
     if (!allowed.includes(body?.categoryType)) {
       throw new BadRequestException(`categoryType inválido. Use: ${allowed.join(', ')}`);
     }
     try {
-      return await this.vehiclesService.categorize(plate, body.categoryType as 'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO');
+      return await this.vehiclesService.categorize(plate, body.categoryType as 'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO', body.subSegment);
     } catch {
       throw new NotFoundException(`Veículo ${plate} não encontrado`);
     }

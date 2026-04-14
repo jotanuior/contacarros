@@ -1,8 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { Badge, Button, Card, Input, Pagination, Select, Table } from '../components/ui';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { formatDateTime } from '../lib/utils';
+
+type HeavySubtypeOptions = {
+  truckSubtypes: string[];
+  busSubtypes: string[];
+};
 
 function toDateTimeLocal(date: Date) {
   const pad = (value: number) => String(value).padStart(2, '0');
@@ -39,35 +44,50 @@ export function ReadingsPage() {
   const [page, setPage] = useState(1);
   const [to, setTo] = useState(() => toDateTimeLocal(new Date()));
   const [from, setFrom] = useState(() => toDateTimeLocal(new Date(Date.now() - 24 * 60 * 60 * 1000)));
+  const [filterTipo, setFilterTipo] = useState('');
+  const [filterSubSegment, setFilterSubSegment] = useState('');
   const [selectedImage, setSelectedImage] = useState<{ url: string; plate: string } | null>(null);
   const [categoryChoices, setCategoryChoices] = useState<Record<string, string>>({});
+  const [subCategoryChoices, setSubCategoryChoices] = useState<Record<string, string>>({});
   const queryClient = useQueryClient();
 
+  const { data: subtypeOptions } = useQuery<HeavySubtypeOptions>({
+    queryKey: ['heavy-subtypes'],
+    queryFn: async () => (await api.get('/heavy-checks/subtypes')).data,
+  });
+
+  const subtiposForFilter = useMemo(() => {
+    if (!filterTipo) return [];
+    if (filterTipo === 'CAMINHAO') return subtypeOptions?.truckSubtypes ?? [];
+    if (filterTipo === 'ONIBUS') return subtypeOptions?.busSubtypes ?? [];
+    return [];
+  }, [filterTipo, subtypeOptions]);
+
+  const queryParams = {
+    plate: plate || undefined,
+    from: from ? new Date(from).toISOString() : undefined,
+    to: to ? new Date(to).toISOString() : undefined,
+    categoryType: filterTipo || undefined,
+    subSegment: filterSubSegment || undefined,
+    page,
+    limit: 20,
+  };
+
   const { data, isLoading } = useQuery({
-    queryKey: ['readings', plate, from, to, page],
-    queryFn: async () =>
-      (
-        await api.get('/lpr/readings', {
-          params: {
-            plate: plate || undefined,
-            from: from ? new Date(from).toISOString() : undefined,
-            to: to ? new Date(to).toISOString() : undefined,
-            page,
-            limit: 20,
-          },
-        })
-      ).data,
+    queryKey: ['readings', plate, from, to, filterTipo, filterSubSegment, page],
+    queryFn: async () => (await api.get('/lpr/readings', { params: queryParams })).data,
   });
 
   const rows: any[] = data?.data ?? [];
   const totalPages: number = data?.totalPages ?? 1;
 
   const categorizeMutation = useMutation({
-    mutationFn: async ({ plate: p, categoryType }: { plate: string; categoryType: string }) =>
-      api.patch(`/vehicles/${p}/categorize`, { categoryType }),
+    mutationFn: async ({ plate: p, categoryType, subSegment }: { plate: string; categoryType: string; subSegment?: string }) =>
+      api.patch(`/vehicles/${p}/categorize`, { categoryType, subSegment: subSegment || undefined }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['readings'] });
       setCategoryChoices({});
+      setSubCategoryChoices({});
     },
     onError: (error: any) => {
       window.alert(error?.response?.data?.message ?? 'Falha ao categorizar veículo');
@@ -77,13 +97,62 @@ export function ReadingsPage() {
   const needsCategorization = (item: any) =>
     ['OUTRO', 'DESCONHECIDO'].includes(item.vehicle?.categoryType) || !item.vehicle?.categoryType;
 
+  const exportFile = async (format: 'csv' | 'pdf') => {
+    const response = await api.get('/lpr/readings/export', {
+      params: { format, ...queryParams, page: undefined, limit: undefined },
+      responseType: 'blob',
+    });
+    const mime = format === 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8';
+    const ext = format;
+    const blob = new Blob([response.data], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `leituras.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Leituras</h1>
-      <Card className="flex gap-2">
-        <Input placeholder="Filtrar placa" value={plate} onChange={(e) => { setPlate(e.target.value); setPage(1); }} />
-        <Input type="datetime-local" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
-        <Input type="datetime-local" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
+      <Card className="flex flex-wrap gap-2 items-end">
+        <div>
+          <p className="text-xs uppercase text-slate-500">Placa</p>
+          <Input placeholder="Filtrar placa" value={plate} onChange={(e) => { setPlate(e.target.value); setPage(1); }} />
+        </div>
+        <div>
+          <p className="text-xs uppercase text-slate-500">De</p>
+          <Input type="datetime-local" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} />
+        </div>
+        <div>
+          <p className="text-xs uppercase text-slate-500">Até</p>
+          <Input type="datetime-local" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} />
+        </div>
+        <div>
+          <p className="text-xs uppercase text-slate-500">Tipo</p>
+          <Select value={filterTipo} onChange={(e) => { setFilterTipo(e.target.value); setFilterSubSegment(''); setPage(1); }}>
+            <option value="">Todos</option>
+            <option value="CARRO">Carro</option>
+            <option value="CAMINHAO">Caminhão</option>
+            <option value="ONIBUS">Ônibus</option>
+            <option value="OUTRO">Outro</option>
+            <option value="DESCONHECIDO">Desconhecido</option>
+          </Select>
+        </div>
+        {subtiposForFilter.length > 0 && (
+          <div>
+            <p className="text-xs uppercase text-slate-500">Subtipo</p>
+            <Select value={filterSubSegment} onChange={(e) => { setFilterSubSegment(e.target.value); setPage(1); }}>
+              <option value="">Todos</option>
+              {subtiposForFilter.map((s) => <option key={s} value={s}>{s}</option>)}
+            </Select>
+          </div>
+        )}
+        <div className="flex gap-2 pt-4">
+          <Button className="h-9 text-sm" onClick={() => exportFile('csv')}>Exportar CSV</Button>
+          <Button className="h-9 text-sm" onClick={() => exportFile('pdf')}>Exportar PDF</Button>
+        </div>
       </Card>
       <Card>
         {isLoading ? <p>Carregando...</p> : (
@@ -130,29 +199,45 @@ export function ReadingsPage() {
                     <td>{`${item.vehicle?.brand || '-'} ${item.vehicle?.model || ''}`}</td>
                     <td>
                       {needsCategorization(item) ? (
-                        <div className="flex items-center gap-1">
+                        <div className="flex flex-col gap-1">
                           <Select
-                            className="h-8 w-32 text-xs"
+                            className="h-8 w-36 text-xs"
                             value={categoryChoices[item.id] ?? ''}
-                            onChange={(e) => setCategoryChoices((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                            onChange={(e) => {
+                              setCategoryChoices((prev) => ({ ...prev, [item.id]: e.target.value }));
+                              setSubCategoryChoices((prev) => ({ ...prev, [item.id]: '' }));
+                            }}
                           >
                             <option value="">{item.vehicle?.categoryType || 'Categorizar'}</option>
                             <option value="CARRO">Carro</option>
                             <option value="CAMINHAO">Caminhão</option>
                             <option value="ONIBUS">Ônibus</option>
                           </Select>
+                          {(categoryChoices[item.id] === 'CAMINHAO' || categoryChoices[item.id] === 'ONIBUS') && (
+                            <Select
+                              className="h-8 w-36 text-xs"
+                              value={subCategoryChoices[item.id] ?? ''}
+                              onChange={(e) => setSubCategoryChoices((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                            >
+                              <option value="">Subtipo (opcional)</option>
+                              {(categoryChoices[item.id] === 'CAMINHAO'
+                                ? subtypeOptions?.truckSubtypes
+                                : subtypeOptions?.busSubtypes
+                              )?.map((s) => <option key={s} value={s}>{s}</option>)}
+                            </Select>
+                          )}
                           {categoryChoices[item.id] ? (
                             <Button
-                              className="h-8 px-2 text-xs"
+                              className="h-7 px-2 text-xs"
                               disabled={categorizeMutation.isPending}
-                              onClick={() => categorizeMutation.mutate({ plate: item.normalizedPlate, categoryType: categoryChoices[item.id] })}
+                              onClick={() => categorizeMutation.mutate({ plate: item.normalizedPlate, categoryType: categoryChoices[item.id], subSegment: subCategoryChoices[item.id] })}
                             >
-                              ✓
+                              Salvar
                             </Button>
                           ) : null}
                         </div>
                       ) : (
-                        item.vehicle?.categoryType || '-'
+                        <span>{item.vehicle?.categoryType || '-'}{item.vehicle?.subSegment ? ` / ${item.vehicle.subSegment}` : ''}</span>
                       )}
                     </td>
                     <td>{item.location?.name}</td>

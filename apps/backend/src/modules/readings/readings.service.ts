@@ -2,6 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { Parser } from 'json2csv';
+import PDFDocument from 'pdfkit';
 import { PrismaService } from '../../common/prisma.service';
 import { PaginatedResponse, PaginationDto } from '../../common/pagination.dto';
 import { LprReadingDto } from './dto';
@@ -495,7 +497,7 @@ export class ReadingsService {
   }
 
   async list(
-    filters: { plate?: string; localId?: string; cameraId?: string; from?: Date; to?: Date; lowConfidence?: boolean },
+    filters: { plate?: string; localId?: string; cameraId?: string; from?: Date; to?: Date; lowConfidence?: boolean; categoryType?: string; subSegment?: string },
     pagination: PaginationDto = {},
   ) {
     const now = new Date();
@@ -513,13 +515,7 @@ export class ReadingsService {
 
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 20;
-    const where: Prisma.ReadingWhereInput = {
-      normalizedPlate: filters.plate ? { contains: filters.plate.toUpperCase() } : undefined,
-      localId: filters.localId,
-      cameraId: filters.cameraId,
-      capturedAt: { gte: from, lte: to },
-      confidence: filters.lowConfidence ? { lt: 0.8 } : undefined,
-    };
+    const where = this.buildReadingWhere(filters, from, to);
     const [data, total] = await Promise.all([
       this.prisma.reading.findMany({
         where,
@@ -531,5 +527,138 @@ export class ReadingsService {
       this.prisma.reading.count({ where }),
     ]);
     return PaginatedResponse.of(data, total, page, limit);
+  }
+
+  private buildReadingWhere(
+    filters: { plate?: string; localId?: string; cameraId?: string; lowConfidence?: boolean; categoryType?: string; subSegment?: string },
+    from: Date,
+    to: Date,
+  ): Prisma.ReadingWhereInput {
+    const vehicleFilter: Prisma.VehicleWhereInput = {};
+    if (filters.categoryType) {
+      vehicleFilter.categoryType = filters.categoryType as Prisma.EnumVehicleCategoryTypeFilter['equals'];
+    }
+    if (filters.subSegment) {
+      vehicleFilter.subSegment = { contains: filters.subSegment, mode: 'insensitive' };
+    }
+    const hasVehicleFilter = Object.keys(vehicleFilter).length > 0;
+
+    return {
+      normalizedPlate: filters.plate ? { contains: filters.plate.toUpperCase() } : undefined,
+      localId: filters.localId,
+      cameraId: filters.cameraId,
+      capturedAt: { gte: from, lte: to },
+      confidence: filters.lowConfidence ? { lt: 0.8 } : undefined,
+      vehicle: hasVehicleFilter ? vehicleFilter : undefined,
+    };
+  }
+
+  async exportReadingsCsv(
+    filters: { plate?: string; localId?: string; cameraId?: string; from?: Date; to?: Date; lowConfidence?: boolean; categoryType?: string; subSegment?: string },
+  ) {
+    const to = filters.to ?? new Date();
+    const from = filters.from ?? new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const where = this.buildReadingWhere(filters, from, to);
+
+    const readings = await this.prisma.reading.findMany({
+      where,
+      include: { vehicle: true, location: true, camera: true },
+      orderBy: { capturedAt: 'desc' },
+      take: 5000,
+    });
+
+    const parser = new Parser({
+      fields: ['capturedAt', 'plate', 'tipo', 'subtipo', 'local', 'camera', 'confianca', 'duplicada', 'status'],
+    });
+
+    const rows = readings.map((r) => ({
+      capturedAt: r.capturedAt.toISOString(),
+      plate: r.normalizedPlate,
+      tipo: r.vehicle?.categoryType ?? '-',
+      subtipo: r.vehicle?.subSegment ?? '-',
+      local: (r as any).location?.name ?? '-',
+      camera: (r as any).camera?.name ?? '-',
+      confianca: r.confidence ?? '-',
+      duplicada: r.isDuplicate ? 'Sim' : 'Não',
+      status: r.processingStatus,
+    }));
+
+    return parser.parse(rows);
+  }
+
+  async exportReadingsPdf(
+    filters: { plate?: string; localId?: string; cameraId?: string; from?: Date; to?: Date; lowConfidence?: boolean; categoryType?: string; subSegment?: string },
+  ) {
+    const to = filters.to ?? new Date();
+    const from = filters.from ?? new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const where = this.buildReadingWhere(filters, from, to);
+
+    const readings = await this.prisma.reading.findMany({
+      where,
+      include: { vehicle: true, location: true, camera: true },
+      orderBy: { capturedAt: 'desc' },
+      take: 2000,
+    });
+
+    const fmt = (d: Date) =>
+      d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+    const buffer = await new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer | Uint8Array) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.fontSize(13).text('Relatório de Leituras');
+      doc.fontSize(9).text(`Período: ${fmt(from)} até ${fmt(to)}`);
+      if (filters.plate) doc.text(`Placa: ${filters.plate}`);
+      if (filters.categoryType) doc.text(`Tipo: ${filters.categoryType}`);
+      if (filters.subSegment) doc.text(`Subtipo: ${filters.subSegment}`);
+      doc.text(`Total: ${readings.length}`);
+      doc.moveDown(0.5);
+
+      const cols = { date: 30, plate: 135, tipo: 220, subtipo: 295, local: 400, camera: 505, conf: 590, status: 640 };
+      let y = doc.y;
+
+      const drawHeader = () => {
+        doc.fontSize(8).font('Helvetica-Bold');
+        doc.text('Data/hora', cols.date, y, { width: 100 });
+        doc.text('Placa', cols.plate, y, { width: 80 });
+        doc.text('Tipo', cols.tipo, y, { width: 70 });
+        doc.text('Subtipo', cols.subtipo, y, { width: 100 });
+        doc.text('Local', cols.local, y, { width: 100 });
+        doc.text('Câmera', cols.camera, y, { width: 80 });
+        doc.text('Conf.', cols.conf, y, { width: 45 });
+        doc.text('Status', cols.status, y, { width: 80 });
+        y += 14;
+        doc.moveTo(cols.date, y - 2).lineTo(750, y - 2).stroke('#94a3b8');
+        doc.font('Helvetica');
+      };
+
+      drawHeader();
+
+      for (const r of readings) {
+        if (y > 530) {
+          doc.addPage();
+          y = 30;
+          drawHeader();
+        }
+        doc.fontSize(7);
+        doc.text(fmt(r.capturedAt), cols.date, y, { width: 100 });
+        doc.text(r.normalizedPlate, cols.plate, y, { width: 80 });
+        doc.text((r as any).vehicle?.categoryType ?? '-', cols.tipo, y, { width: 70 });
+        doc.text((r as any).vehicle?.subSegment ?? '-', cols.subtipo, y, { width: 100 });
+        doc.text((r as any).location?.name ?? '-', cols.local, y, { width: 100 });
+        doc.text((r as any).camera?.name ?? '-', cols.camera, y, { width: 80 });
+        doc.text(r.confidence != null ? String(r.confidence) : '-', cols.conf, y, { width: 45 });
+        doc.text(r.processingStatus, cols.status, y, { width: 80 });
+        y += 12;
+      }
+
+      doc.end();
+    });
+
+    return buffer;
   }
 }

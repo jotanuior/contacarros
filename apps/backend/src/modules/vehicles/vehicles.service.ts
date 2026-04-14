@@ -76,14 +76,17 @@ export class VehiclesService {
     });
   }
 
-  async categorize(plate: string, categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO') {
+  async categorize(plate: string, categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO', subSegment?: string) {
     const vehicle = await this.prisma.vehicle.findUnique({ where: { plate } });
     if (!vehicle) {
       throw new Error(`Veículo não encontrado: ${plate}`);
     }
     return this.prisma.vehicle.update({
       where: { plate },
-      data: { categoryType: categoryType as import('@prisma/client').VehicleCategoryType },
+      data: {
+        categoryType: categoryType as import('@prisma/client').VehicleCategoryType,
+        subSegment: subSegment ?? vehicle.subSegment,
+      },
     });
   }
 
