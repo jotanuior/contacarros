@@ -85,11 +85,12 @@ export class VehiclesService {
     if (!vehicle) {
       throw new Error(`Veículo não encontrado: ${plate}`);
     }
+    const shouldClearSubSegment = categoryType === 'CARRO' || categoryType === 'OUTRO';
     return this.prisma.vehicle.update({
       where: { plate },
       data: {
         categoryType: categoryType as import('@prisma/client').VehicleCategoryType,
-        subSegment: subSegment ?? vehicle.subSegment,
+        subSegment: shouldClearSubSegment ? null : (subSegment ?? vehicle.subSegment),
       },
     });
   }
@@ -139,6 +140,10 @@ export class VehiclesService {
     }
     if (data.categoryType) {
       updateData.categoryType = data.categoryType;
+      // Clear subSegment when switching to a type that doesn't use it
+      if ((data.categoryType === 'CARRO' || data.categoryType === 'OUTRO') && data.subSegment === undefined) {
+        updateData.subSegment = null;
+      }
     }
     if (data.subSegment !== undefined) {
       updateData.subSegment = data.subSegment || null;
