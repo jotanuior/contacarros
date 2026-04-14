@@ -124,19 +124,34 @@ export function ReadingsPage() {
   }, [correctForm.categoryType, subtypeOptions]);
 
   const exportFile = async (format: 'csv' | 'pdf') => {
-    const response = await api.get('/lpr/readings/export', {
-      params: { format, ...queryParams, page: undefined, limit: undefined },
-      responseType: 'blob',
-    });
-    const mime = format === 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8';
-    const ext = format;
-    const blob = new Blob([response.data], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `leituras.${ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const response = await api.get('/lpr/readings/export', {
+        params: { format, ...queryParams, page: undefined, limit: undefined },
+        responseType: 'blob',
+      });
+
+      // If the server returned an error JSON inside a blob, surface it
+      const contentType = response.headers?.['content-type'] ?? '';
+      if (contentType.includes('application/json')) {
+        const text = await (response.data as Blob).text();
+        window.alert(`Erro ao exportar: ${text}`);
+        return;
+      }
+
+      const mime = format === 'pdf' ? 'application/pdf' : 'text/csv;charset=utf-8';
+      const blob = new Blob([response.data], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url;
+      a.download = `leituras.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      const msg = err?.response?.data
+        ? await (err.response.data as Blob).text?.().catch(() => String(err.response.data))
+        : err?.message ?? 'Erro desconhecido';
+      window.alert(`Erro ao exportar: ${msg}`);
+    }
   };
 
   return (
