@@ -98,9 +98,26 @@ export class ReportsService {
     return this.typeLabels[type] || type;
   }
 
-  private async buildQuantitativeRows(start: Date, end: Date): Promise<QuantitativeRow[]> {
+  private async buildQuantitativeRows(
+    start: Date,
+    end: Date,
+    tipo?: string,
+    subtipo?: string,
+  ): Promise<QuantitativeRow[]> {
+    const where: import('@prisma/client').Prisma.HeavyVehicleCheckWhereInput = {
+      checkedAt: { gte: start, lte: end },
+    };
+
+    if (tipo) {
+      where.vehicle = { categoryType: tipo as import('@prisma/client').VehicleCategoryType };
+    }
+
+    if (subtipo) {
+      where.subtype = { contains: subtipo, mode: 'insensitive' };
+    }
+
     const checks = await this.prisma.heavyVehicleCheck.findMany({
-      where: { checkedAt: { gte: start, lte: end } },
+      where,
       include: { vehicle: { select: { categoryType: true } } },
     });
 
@@ -190,9 +207,9 @@ export class ReportsService {
     };
   }
 
-  async getQuantitative(from?: string, to?: string) {
+  async getQuantitative(from?: string, to?: string, tipo?: string, subtipo?: string) {
     const { start, end } = this.resolvePeriod(from, to);
-    const rows = await this.buildQuantitativeRows(start, end);
+    const rows = await this.buildQuantitativeRows(start, end, tipo, subtipo);
     const total = rows.reduce((acc, item) => acc + item.quantidade, 0);
 
     return {
@@ -205,32 +222,37 @@ export class ReportsService {
     };
   }
 
-  async getQuantitativeCsv(from?: string, to?: string) {
-    const result = await this.getQuantitative(from, to);
+  async getQuantitativeCsv(from?: string, to?: string, tipo?: string, subtipo?: string) {
+    const result = await this.getQuantitative(from, to, tipo, subtipo);
     const parser = new Parser({ fields: ['tipo', 'subtipo', 'quantidade'] });
     return parser.parse(result.rows);
   }
 
-  async getQuantitativeXls(from?: string, to?: string) {
-    const result = await this.getQuantitative(from, to);
+  async getQuantitativeXls(from?: string, to?: string, tipo?: string, subtipo?: string) {
+    const result = await this.getQuantitative(from, to, tipo, subtipo);
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Quantitativo');
 
-    sheet.columns = [
-      { header: 'Tipo', key: 'tipo', width: 20 },
-      { header: 'Subtipo', key: 'subtipo', width: 35 },
-      { header: 'Quantidade', key: 'quantidade', width: 14 },
-    ];
+    // Header metadata rows
+    sheet.addRow(['Período:', this.periodText(result.period.from, result.period.to)]);
+    if (tipo) sheet.addRow(['Tipo:', this.toDisplayType(tipo)]);
+    if (subtipo) sheet.addRow(['Subtipo:', subtipo]);
+    sheet.addRow([]);
+
+    const tableHeaderRow = sheet.addRow(['Tipo', 'Subtipo', 'Quantidade']);
+    tableHeaderRow.font = { bold: true };
+
+    sheet.getColumn(1).width = 20;
+    sheet.getColumn(2).width = 35;
+    sheet.getColumn(3).width = 14;
 
     result.rows.forEach((row) => {
-      sheet.addRow(row);
+      sheet.addRow([row.tipo, row.subtipo, row.quantidade]);
     });
 
-    sheet.addRow({});
-    sheet.addRow({ tipo: 'TOTAL', quantidade: result.total });
-
-    const header = sheet.getRow(1);
-    header.font = { bold: true };
+    sheet.addRow([]);
+    const totalRow = sheet.addRow(['TOTAL', '', result.total]);
+    totalRow.font = { bold: true };
 
     const fileName = `quantitativo_tipo_subtipo_${this.formatDateFileToken(result.period.from)}_${this.formatDateFileToken(result.period.to)}.xlsx`;
     const output = await workbook.xlsx.writeBuffer();
@@ -241,8 +263,8 @@ export class ReportsService {
     };
   }
 
-  async getQuantitativePdf(from?: string, to?: string) {
-    const result = await this.getQuantitative(from, to);
+  async getQuantitativePdf(from?: string, to?: string, tipo?: string, subtipo?: string) {
+    const result = await this.getQuantitative(from, to, tipo, subtipo);
     const fileName = `quantitativo_tipo_subtipo_${this.formatDateFileToken(result.period.from)}_${this.formatDateFileToken(result.period.to)}.pdf`;
 
     const buffer = await new Promise<Buffer>((resolve, reject) => {
@@ -258,7 +280,11 @@ export class ReportsService {
       doc.fontSize(14).text('Relatório quantitativo por tipo e subtipo');
       doc.moveDown(0.4);
       doc.fontSize(10).text(`Período: ${this.periodText(result.period.from, result.period.to)}`);
-      doc.moveDown(0.8);
+      if (tipo) doc.fontSize(10).text(`Tipo: ${this.toDisplayType(tipo)}`);
+      if (subtipo) doc.fontSize(10).text(`Subtipo: ${subtipo}`);
+      doc.moveDown(0.5);
+      doc.fontSize(10).text(`Total no período: ${result.total}`);
+      doc.moveDown(0.6);
 
       let y = doc.y;
       const colTipo = 36;
@@ -271,6 +297,11 @@ export class ReportsService {
 
       y += 18;
       doc.moveTo(colTipo, y - 4).lineTo(560, y - 4).stroke('#94a3b8');
+
+      if (result.rows.length === 0) {
+        doc.fontSize(10).text('Nenhum registro encontrado para os filtros informados.', colTipo, y);
+        y += 18;
+      }
 
       for (const row of result.rows) {
         if (y > 760) {
@@ -289,8 +320,6 @@ export class ReportsService {
         y += 18;
       }
 
-      doc.moveDown(0.5);
-      doc.fontSize(11).text(`Total: ${result.total}`);
       doc.end();
     });
 

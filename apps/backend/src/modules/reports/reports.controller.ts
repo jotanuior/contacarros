@@ -22,8 +22,13 @@ export class ReportsController {
   }
 
   @Get('quantitative')
-  getQuantitative(@Query('from') from?: string, @Query('to') to?: string) {
-    return this.reportsService.getQuantitative(from, to);
+  getQuantitative(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('tipo') tipo?: string,
+    @Query('subtipo') subtipo?: string,
+  ) {
+    return this.reportsService.getQuantitative(from, to, tipo, subtipo);
   }
 
   @Get('quantitative/export')
@@ -31,12 +36,14 @@ export class ReportsController {
     @Query('format') format: string = 'csv',
     @Query('from') from: string | undefined,
     @Query('to') to: string | undefined,
+    @Query('tipo') tipo: string | undefined,
+    @Query('subtipo') subtipo: string | undefined,
     @Res() res: Response,
   ) {
     const normalized = (format || 'csv').toLowerCase();
 
     if (normalized === 'csv') {
-      const content = await this.reportsService.getQuantitativeCsv(from, to);
+      const content = await this.reportsService.getQuantitativeCsv(from, to, tipo, subtipo);
       const fileName = `quantitativo_tipo_subtipo.csv`;
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
@@ -45,7 +52,7 @@ export class ReportsController {
     }
 
     if (normalized === 'xls' || normalized === 'xlsx') {
-      const file = await this.reportsService.getQuantitativeXls(from, to);
+      const file = await this.reportsService.getQuantitativeXls(from, to, tipo, subtipo);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
       res.send(file.buffer);
@@ -53,7 +60,7 @@ export class ReportsController {
     }
 
     if (normalized === 'pdf') {
-      const file = await this.reportsService.getQuantitativePdf(from, to);
+      const file = await this.reportsService.getQuantitativePdf(from, to, tipo, subtipo);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${file.fileName}"`);
       res.send(file.buffer);
