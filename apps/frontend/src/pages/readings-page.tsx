@@ -59,11 +59,6 @@ export function ReadingsPage() {
     queryFn: async () => (await api.get('/heavy-checks/subtypes')).data,
   });
 
-  const { data: gratuidadeTypesData } = useQuery<{ gratuidadeTypes: string[] }>({
-    queryKey: ['gratuidade-types'],
-    queryFn: async () => (await api.get('/settings/gratuidade-types')).data,
-  });
-
   const subtiposForFilter = useMemo(() => {
     if (!filterTipo) return [];
     if (filterTipo === 'CAMINHAO') return subtypeOptions?.truckSubtypes ?? [];
