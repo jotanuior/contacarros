@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { VehiclesService } from './vehicles.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
@@ -23,5 +23,22 @@ export class VehiclesController {
       limit: limit ? Math.min(Number(limit), 200) : 20,
     };
     return this.vehiclesService.list({ plate, categoryType }, pagination);
+  }
+
+  @Patch(':plate/categorize')
+  @Roles('ADMIN', 'OPERADOR')
+  async categorize(
+    @Param('plate') plate: string,
+    @Body() body: { categoryType: string },
+  ) {
+    const allowed = ['CARRO', 'CAMINHAO', 'ONIBUS', 'OUTRO'];
+    if (!allowed.includes(body?.categoryType)) {
+      throw new BadRequestException(`categoryType inválido. Use: ${allowed.join(', ')}`);
+    }
+    try {
+      return await this.vehiclesService.categorize(plate, body.categoryType as 'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO');
+    } catch {
+      throw new NotFoundException(`Veículo ${plate} não encontrado`);
+    }
   }
 }

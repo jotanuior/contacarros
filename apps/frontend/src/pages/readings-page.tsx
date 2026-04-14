@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { Badge, Card, Input, Pagination, Table } from '../components/ui';
+import { Badge, Button, Card, Input, Pagination, Select, Table } from '../components/ui';
 import { useState } from 'react';
 import { formatDateTime } from '../lib/utils';
 
@@ -40,6 +40,8 @@ export function ReadingsPage() {
   const [to, setTo] = useState(() => toDateTimeLocal(new Date()));
   const [from, setFrom] = useState(() => toDateTimeLocal(new Date(Date.now() - 24 * 60 * 60 * 1000)));
   const [selectedImage, setSelectedImage] = useState<{ url: string; plate: string } | null>(null);
+  const [categoryChoices, setCategoryChoices] = useState<Record<string, string>>({});
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: ['readings', plate, from, to, page],
@@ -59,6 +61,21 @@ export function ReadingsPage() {
 
   const rows: any[] = data?.data ?? [];
   const totalPages: number = data?.totalPages ?? 1;
+
+  const categorizeMutation = useMutation({
+    mutationFn: async ({ plate: p, categoryType }: { plate: string; categoryType: string }) =>
+      api.patch(`/vehicles/${p}/categorize`, { categoryType }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['readings'] });
+      setCategoryChoices({});
+    },
+    onError: (error: any) => {
+      window.alert(error?.response?.data?.message ?? 'Falha ao categorizar veículo');
+    },
+  });
+
+  const needsCategorization = (item: any) =>
+    ['OUTRO', 'DESCONHECIDO'].includes(item.vehicle?.categoryType) || !item.vehicle?.categoryType;
 
   return (
     <div className="space-y-4">
@@ -111,7 +128,33 @@ export function ReadingsPage() {
                       </div>
                     </td>
                     <td>{`${item.vehicle?.brand || '-'} ${item.vehicle?.model || ''}`}</td>
-                    <td>{item.vehicle?.categoryType || '-'}</td>
+                    <td>
+                      {needsCategorization(item) ? (
+                        <div className="flex items-center gap-1">
+                          <Select
+                            className="h-8 w-32 text-xs"
+                            value={categoryChoices[item.id] ?? ''}
+                            onChange={(e) => setCategoryChoices((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                          >
+                            <option value="">{item.vehicle?.categoryType || 'Categorizar'}</option>
+                            <option value="CARRO">Carro</option>
+                            <option value="CAMINHAO">Caminhão</option>
+                            <option value="ONIBUS">Ônibus</option>
+                          </Select>
+                          {categoryChoices[item.id] ? (
+                            <Button
+                              className="h-8 px-2 text-xs"
+                              disabled={categorizeMutation.isPending}
+                              onClick={() => categorizeMutation.mutate({ plate: item.normalizedPlate, categoryType: categoryChoices[item.id] })}
+                            >
+                              ✓
+                            </Button>
+                          ) : null}
+                        </div>
+                      ) : (
+                        item.vehicle?.categoryType || '-'
+                      )}
+                    </td>
                     <td>{item.location?.name}</td>
                     <td>{item.camera?.name}</td>
                     <td>{item.confidence ?? '-'}</td>

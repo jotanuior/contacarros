@@ -76,6 +76,17 @@ export class VehiclesService {
     });
   }
 
+  async categorize(plate: string, categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO') {
+    const vehicle = await this.prisma.vehicle.findUnique({ where: { plate } });
+    if (!vehicle) {
+      throw new Error(`Veículo não encontrado: ${plate}`);
+    }
+    return this.prisma.vehicle.update({
+      where: { plate },
+      data: { categoryType: categoryType as import('@prisma/client').VehicleCategoryType },
+    });
+  }
+
   async applyCameraTypeMapping(
     plate: string,
     mapping: { categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS'; subtype?: string | null },
