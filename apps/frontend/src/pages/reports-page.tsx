@@ -18,11 +18,6 @@ type QuantitativeResponse = {
   rows: QuantitativeRow[];
 };
 
-type HeavySubtypeOptions = {
-  truckSubtypes: string[];
-  busSubtypes: string[];
-};
-
 function localDatetime(offsetMinutes: number) {
   const d = new Date(Date.now() + offsetMinutes * 60 * 1000);
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -43,18 +38,12 @@ export function ReportsPage() {
   const [filterTipo, setFilterTipo] = useState('');
   const [filterSubtipo, setFilterSubtipo] = useState('');
 
-  const { data: subtypeOptions } = useQuery<HeavySubtypeOptions>({
-    queryKey: ['heavy-subtypes'],
-    queryFn: async () => (await api.get('/heavy-checks/subtypes')).data,
+  const { data: vehicleSegments } = useQuery<string[]>({
+    queryKey: ['reports-vehicle-segments'],
+    queryFn: async () => (await api.get('/reports/vehicle-segments')).data,
   });
 
-  const allSubtypes = useMemo(() => {
-    const s = new Set([
-      ...(subtypeOptions?.truckSubtypes || []),
-      ...(subtypeOptions?.busSubtypes || []),
-    ]);
-    return Array.from(s).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [subtypeOptions]);
+  const allSubtypes = vehicleSegments || [];
 
   const queryParams = {
     from: toISO(fromDate),

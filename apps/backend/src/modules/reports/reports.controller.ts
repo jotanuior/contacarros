@@ -21,6 +21,11 @@ export class ReportsController {
     return this.reportsService.getCsv(from, to);
   }
 
+  @Get('vehicle-segments')
+  getVehicleSegments() {
+    return this.reportsService.getVehicleSegments();
+  }
+
   @Get('quantitative')
   getQuantitative(
     @Query('from') from?: string,

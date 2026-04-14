@@ -104,8 +104,8 @@ export class ReportsService {
     tipo?: string,
     subtipo?: string,
   ): Promise<QuantitativeRow[]> {
-    const where: import('@prisma/client').Prisma.HeavyVehicleCheckWhereInput = {
-      checkedAt: { gte: start, lte: end },
+    const where: import('@prisma/client').Prisma.ReadingWhereInput = {
+      capturedAt: { gte: start, lte: end },
     };
 
     if (tipo) {
@@ -113,26 +113,31 @@ export class ReportsService {
     }
 
     if (subtipo) {
-      where.subtype = { contains: subtipo, mode: 'insensitive' };
+      where.vehicle = {
+        ...(where.vehicle as object),
+        segment: { contains: subtipo, mode: 'insensitive' },
+      };
     }
 
-    const checks = await this.prisma.heavyVehicleCheck.findMany({
+    const readings = await this.prisma.reading.findMany({
       where,
-      include: { vehicle: { select: { categoryType: true } } },
+      select: {
+        vehicle: { select: { categoryType: true, segment: true } },
+      },
     });
 
     const map = new Map<string, QuantitativeRow>();
 
-    for (const item of checks) {
-      const tipo = this.toDisplayType(item.vehicle?.categoryType || 'DESCONHECIDO');
-      const subtipo = item.subtype?.trim() || 'Não informado';
-      const key = `${tipo}::${subtipo}`;
+    for (const item of readings) {
+      const tipoLabel = this.toDisplayType(item.vehicle?.categoryType || 'DESCONHECIDO');
+      const subtipoLabel = item.vehicle?.segment?.trim() || 'Não informado';
+      const key = `${tipoLabel}::${subtipoLabel}`;
       const current = map.get(key);
 
       if (current) {
         current.quantidade += 1;
       } else {
-        map.set(key, { tipo, subtipo, quantidade: 1 });
+        map.set(key, { tipo: tipoLabel, subtipo: subtipoLabel, quantidade: 1 });
       }
     }
 
@@ -205,6 +210,16 @@ export class ReportsService {
         operator: item.checkedByUser.name,
       }))),
     };
+  }
+
+  async getVehicleSegments(): Promise<string[]> {
+    const result = await this.prisma.vehicle.findMany({
+      where: { segment: { not: null } },
+      select: { segment: true },
+      distinct: ['segment'],
+      orderBy: { segment: 'asc' },
+    });
+    return result.map((v) => v.segment as string).filter(Boolean);
   }
 
   async getQuantitative(from?: string, to?: string, tipo?: string, subtipo?: string) {
