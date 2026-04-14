@@ -92,7 +92,7 @@ export class ReadingsService {
     return `${this.getMediaBasePath()}/media/vehicles/${plate}.jpg`;
   }
 
-  private async persistCameraImageIfMissing(plate: string, rawPayload?: Record<string, unknown>) {
+  private async persistCameraImage(plate: string, rawPayload?: Record<string, unknown>) {
     if (!rawPayload) {
       return undefined;
     }
@@ -121,13 +121,6 @@ export class ReadingsService {
 
     await fs.mkdir(outputDir, { recursive: true });
 
-    try {
-      await fs.access(filePath);
-      return this.getPlateImageUrl(plate);
-    } catch {
-      // File does not exist; continue and create it.
-    }
-
     let imageBuffer: Buffer;
     try {
       imageBuffer = Buffer.from(sanitized, 'base64');
@@ -140,11 +133,9 @@ export class ReadingsService {
     }
 
     try {
-      await fs.writeFile(filePath, imageBuffer, { flag: 'wx' });
+      await fs.writeFile(filePath, imageBuffer);
     } catch (error: unknown) {
-      if (!(error instanceof Error) || !('code' in error) || (error as { code?: string }).code !== 'EEXIST') {
-        throw error;
-      }
+      throw error;
     }
 
     return this.getPlateImageUrl(plate);
@@ -176,7 +167,7 @@ export class ReadingsService {
     const capturedAt = new Date(reading.capturedAt);
     const dedupMinutes = await this.settingsService.getNumber('DEDUP_MINUTES', 2);
     const dedupSince = new Date(capturedAt.getTime() - dedupMinutes * 60 * 1000);
-    const plateImageUrl = await this.persistCameraImageIfMissing(normalizedPlate, reading.rawPayload);
+    const plateImageUrl = await this.persistCameraImage(normalizedPlate, reading.rawPayload);
     const imageUrl = reading.imageUrl || plateImageUrl;
 
     const duplicateExists = await this.prisma.reading.findFirst({

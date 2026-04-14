@@ -136,7 +136,7 @@ export class TripsService {
           });
 
           const rescueRule = await this.routeRulesService.findRule(latestClosedTrip.startLocalId, input.localId);
-          let rescueStatus = 'INCONSISTENTE';
+          let rescueStatus: import('@prisma/client').TripStatus = 'INCONSISTENTE';
           let rescueSeverity: 'BAIXA' | 'MEDIA' | 'ALTA' = 'ALTA';
           let rescueConclusion = 'Sem regra cadastrada para rota';
 
