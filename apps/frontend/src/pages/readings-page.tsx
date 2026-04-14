@@ -49,6 +49,8 @@ export function ReadingsPage() {
   const [selectedImage, setSelectedImage] = useState<{ url: string; plate: string } | null>(null);
   const [categoryChoices, setCategoryChoices] = useState<Record<string, string>>({});
   const [subCategoryChoices, setSubCategoryChoices] = useState<Record<string, string>>({});
+  const [correctTarget, setCorrectTarget] = useState<{ plate: string; categoryType: string; subSegment: string } | null>(null);
+  const [correctForm, setCorrectForm] = useState({ newPlate: '', categoryType: '', subSegment: '', justification: '' });
   const queryClient = useQueryClient();
 
   const { data: subtypeOptions } = useQuery<HeavySubtypeOptions>({
@@ -96,6 +98,30 @@ export function ReadingsPage() {
 
   const needsCategorization = (item: any) =>
     ['OUTRO', 'DESCONHECIDO'].includes(item.vehicle?.categoryType) || !item.vehicle?.categoryType;
+
+  const correctMutation = useMutation({
+    mutationFn: async ({ plate: p, ...body }: { plate: string; newPlate?: string; categoryType?: string; subSegment?: string; justification: string }) =>
+      api.patch(`/vehicles/${p}/correct`, body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['readings'] });
+      setCorrectTarget(null);
+      setCorrectForm({ newPlate: '', categoryType: '', subSegment: '', justification: '' });
+    },
+    onError: (error: any) => {
+      window.alert(error?.response?.data?.message ?? 'Falha ao corrigir veículo');
+    },
+  });
+
+  const openCorrectModal = (item: any) => {
+    setCorrectTarget({ plate: item.normalizedPlate, categoryType: item.vehicle?.categoryType ?? '', subSegment: item.vehicle?.subSegment ?? '' });
+    setCorrectForm({ newPlate: '', categoryType: item.vehicle?.categoryType ?? '', subSegment: item.vehicle?.subSegment ?? '', justification: '' });
+  };
+
+  const subtiposForCorrect = useMemo(() => {
+    if (correctForm.categoryType === 'CAMINHAO') return subtypeOptions?.truckSubtypes ?? [];
+    if (correctForm.categoryType === 'ONIBUS') return subtypeOptions?.busSubtypes ?? [];
+    return [];
+  }, [correctForm.categoryType, subtypeOptions]);
 
   const exportFile = async (format: 'csv' | 'pdf') => {
     const response = await api.get('/lpr/readings/export', {
@@ -158,7 +184,7 @@ export function ReadingsPage() {
         {isLoading ? <p>Carregando...</p> : (
           <>
             <Table>
-              <thead><tr><th>Data/hora</th><th>Placa</th><th>Marca/Modelo</th><th>Tipo</th><th>Local</th><th>Câmera</th><th>Confiança</th><th>Duplicada</th><th>Status</th></tr></thead>
+              <thead><tr><th>Data/hora</th><th>Placa</th><th>Marca/Modelo</th><th>Tipo</th><th>Local</th><th>Câmera</th><th>Confiança</th><th>Duplicada</th><th>Status</th><th></th></tr></thead>
               <tbody>
                 {rows.map((item: any) => (
                   <tr key={item.id} className="border-t border-slate-100">
@@ -245,6 +271,11 @@ export function ReadingsPage() {
                     <td>{item.confidence ?? '-'}</td>
                     <td>{item.isDuplicate ? <Badge className="bg-amber-100 text-amber-700">Sim</Badge> : 'Não'}</td>
                     <td>{item.processingStatus}</td>
+                    <td>
+                      <Button className="h-7 px-2 text-xs bg-slate-600 hover:bg-slate-500" onClick={() => openCorrectModal(item)}>
+                        Corrigir
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -253,6 +284,75 @@ export function ReadingsPage() {
           </>
         )}
       </Card>
+
+      {correctTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setCorrectTarget(null)}>
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-sm font-semibold text-slate-800">Corrigir veículo — {correctTarget.plate}</h2>
+
+            <div>
+              <p className="text-xs uppercase text-slate-500 mb-1">Nova placa (deixe em branco para manter)</p>
+              <Input
+                placeholder={correctTarget.plate}
+                value={correctForm.newPlate}
+                onChange={(e) => setCorrectForm((f) => ({ ...f, newPlate: e.target.value.toUpperCase() }))}
+              />
+            </div>
+
+            <div>
+              <p className="text-xs uppercase text-slate-500 mb-1">Tipo</p>
+              <Select
+                value={correctForm.categoryType}
+                onChange={(e) => setCorrectForm((f) => ({ ...f, categoryType: e.target.value, subSegment: '' }))}
+              >
+                <option value="">Manter atual ({correctTarget.categoryType || '-'})</option>
+                <option value="CARRO">Carro</option>
+                <option value="CAMINHAO">Caminhão</option>
+                <option value="ONIBUS">Ônibus</option>
+                <option value="OUTRO">Outro</option>
+              </Select>
+            </div>
+
+            {(correctForm.categoryType === 'CAMINHAO' || correctForm.categoryType === 'ONIBUS') && (
+              <div>
+                <p className="text-xs uppercase text-slate-500 mb-1">Subtipo</p>
+                <Select
+                  value={correctForm.subSegment}
+                  onChange={(e) => setCorrectForm((f) => ({ ...f, subSegment: e.target.value }))}
+                >
+                  <option value="">Nenhum / manter atual</option>
+                  {subtiposForCorrect.map((s) => <option key={s} value={s}>{s}</option>)}
+                </Select>
+              </div>
+            )}
+
+            <div>
+              <p className="text-xs uppercase text-slate-500 mb-1">Justificativa <span className="text-red-500">*</span></p>
+              <Input
+                placeholder="Descreva o motivo da correção"
+                value={correctForm.justification}
+                onChange={(e) => setCorrectForm((f) => ({ ...f, justification: e.target.value }))}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                disabled={!correctForm.justification.trim() || correctMutation.isPending}
+                onClick={() => correctMutation.mutate({
+                  plate: correctTarget.plate,
+                  newPlate: correctForm.newPlate.trim() || undefined,
+                  categoryType: correctForm.categoryType || undefined,
+                  subSegment: correctForm.subSegment || undefined,
+                  justification: correctForm.justification.trim(),
+                })}
+              >
+                Salvar correção
+              </Button>
+              <Button className="bg-slate-500 hover:bg-slate-400" onClick={() => setCorrectTarget(null)}>Cancelar</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {selectedImage ? (
         <div

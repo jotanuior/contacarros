@@ -3,6 +3,7 @@ import { VehiclesService } from './vehicles.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
 import { Roles } from '../../common/roles.decorator';
+import { CurrentUser } from '../../common/current-user.decorator';
 import { PaginationDto } from '../../common/pagination.dto';
 
 @Controller('vehicles')
@@ -40,5 +41,15 @@ export class VehiclesController {
     } catch {
       throw new NotFoundException(`Veículo ${plate} não encontrado`);
     }
+  }
+
+  @Patch(':plate/correct')
+  @Roles('ADMIN', 'OPERADOR')
+  async correct(
+    @Param('plate') plate: string,
+    @Body() body: { newPlate?: string; categoryType?: string; subSegment?: string; justification: string },
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.vehiclesService.correct(plate, user?.id, body);
   }
 }

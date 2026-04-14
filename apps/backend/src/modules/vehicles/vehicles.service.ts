@@ -1,10 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma.service';
 import { PaginatedResponse, PaginationDto } from '../../common/pagination.dto';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class VehiclesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditLogs: AuditLogsService,
+  ) {}
 
   private getVehicleInfo(data: any) {
     if (data?.informacoes_veiculo && typeof data.informacoes_veiculo === 'object') {
@@ -108,5 +112,57 @@ export class VehiclesService {
         subSegment: mapping.categoryType === 'CARRO' ? null : mapping.subtype ?? null,
       },
     });
+  }
+
+  async correct(
+    plate: string,
+    userId: string,
+    data: { newPlate?: string; categoryType?: string; subSegment?: string; justification: string },
+  ) {
+    if (!data.justification?.trim()) {
+      throw new BadRequestException('Justificativa é obrigatória para correção de veículo');
+    }
+
+    const vehicle = await this.prisma.vehicle.findUnique({ where: { plate } });
+    if (!vehicle) {
+      throw new BadRequestException(`Veículo não encontrado: ${plate}`);
+    }
+
+    const updateData: Record<string, unknown> = {};
+    if (data.newPlate && data.newPlate.trim() !== plate) {
+      const normalizedNew = data.newPlate.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const conflict = await this.prisma.vehicle.findUnique({ where: { plate: normalizedNew } });
+      if (conflict) {
+        throw new BadRequestException(`Placa ${normalizedNew} já existe no sistema`);
+      }
+      updateData.plate = normalizedNew;
+    }
+    if (data.categoryType) {
+      updateData.categoryType = data.categoryType;
+    }
+    if (data.subSegment !== undefined) {
+      updateData.subSegment = data.subSegment || null;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      throw new BadRequestException('Nenhum campo de correção informado');
+    }
+
+    const updated = await this.prisma.vehicle.update({
+      where: { plate },
+      data: updateData as import('@prisma/client').Prisma.VehicleUpdateInput,
+    });
+
+    await this.auditLogs.create({
+      userId,
+      action: 'VEHICLE_CORRECTED',
+      entityType: 'Vehicle',
+      entityId: vehicle.id,
+      description: `Correção manual: ${data.justification.trim()}`,
+      beforeData: { plate: vehicle.plate, categoryType: vehicle.categoryType, subSegment: vehicle.subSegment },
+      afterData: { plate: updated.plate, categoryType: updated.categoryType, subSegment: updated.subSegment },
+    });
+
+    return updated;
   }
 }
