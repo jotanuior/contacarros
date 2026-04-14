@@ -557,7 +557,16 @@ export class ReadingsService {
 
     const readings = await this.prisma.reading.findMany({
       where,
-      include: { vehicle: true, location: true, camera: true },
+      select: {
+        capturedAt: true,
+        normalizedPlate: true,
+        confidence: true,
+        isDuplicate: true,
+        processingStatus: true,
+        vehicle: { select: { categoryType: true, subSegment: true } },
+        location: { select: { name: true } },
+        camera: { select: { name: true } },
+      },
       orderBy: { capturedAt: 'desc' },
       take: 5000,
     });
@@ -571,8 +580,8 @@ export class ReadingsService {
       plate: r.normalizedPlate,
       tipo: r.vehicle?.categoryType ?? '-',
       subtipo: r.vehicle?.subSegment ?? '-',
-      local: (r as any).location?.name ?? '-',
-      camera: (r as any).camera?.name ?? '-',
+      local: r.location?.name ?? '-',
+      camera: r.camera?.name ?? '-',
       confianca: r.confidence ?? '-',
       duplicada: r.isDuplicate ? 'Sim' : 'Não',
       status: r.processingStatus,
@@ -590,7 +599,15 @@ export class ReadingsService {
 
     const readings = await this.prisma.reading.findMany({
       where,
-      include: { vehicle: true, location: true, camera: true },
+      select: {
+        capturedAt: true,
+        normalizedPlate: true,
+        confidence: true,
+        processingStatus: true,
+        vehicle: { select: { categoryType: true, subSegment: true } },
+        location: { select: { name: true } },
+        camera: { select: { name: true } },
+      },
       orderBy: { capturedAt: 'desc' },
       take: 2000,
     });
@@ -642,10 +659,10 @@ export class ReadingsService {
         doc.fontSize(7);
         doc.text(fmt(r.capturedAt), cols.date, y, { width: 100 });
         doc.text(r.normalizedPlate, cols.plate, y, { width: 80 });
-        doc.text((r as any).vehicle?.categoryType ?? '-', cols.tipo, y, { width: 70 });
-        doc.text((r as any).vehicle?.subSegment ?? '-', cols.subtipo, y, { width: 100 });
-        doc.text((r as any).location?.name ?? '-', cols.local, y, { width: 100 });
-        doc.text((r as any).camera?.name ?? '-', cols.camera, y, { width: 80 });
+        doc.text(r.vehicle?.categoryType ?? '-', cols.tipo, y, { width: 70 });
+        doc.text(r.vehicle?.subSegment ?? '-', cols.subtipo, y, { width: 100 });
+        doc.text(r.location?.name ?? '-', cols.local, y, { width: 100 });
+        doc.text(r.camera?.name ?? '-', cols.camera, y, { width: 80 });
         doc.text(r.confidence != null ? String(r.confidence) : '-', cols.conf, y, { width: 45 });
         doc.text(r.processingStatus, cols.status, y, { width: 80 });
         y += 12;
