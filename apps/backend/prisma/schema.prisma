@@ -141,6 +141,8 @@ model Vehicle {
   city          String?
   state         String?
   categoryType  VehicleCategoryType @default(DESCONHECIDO)
+  isGratuidade  Boolean             @default(false)
+  gratuidadeType String?
   lastApiSyncAt DateTime?
   apiRawData    Json?
   readings      Reading[]

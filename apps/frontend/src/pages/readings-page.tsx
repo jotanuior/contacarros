@@ -46,6 +46,7 @@ export function ReadingsPage() {
   const [from, setFrom] = useState(() => toDateTimeLocal(new Date(Date.now() - 24 * 60 * 60 * 1000)));
   const [filterTipo, setFilterTipo] = useState('');
   const [filterSubSegment, setFilterSubSegment] = useState('');
+  const [filterGratuidade, setFilterGratuidade] = useState('');
   const [selectedImage, setSelectedImage] = useState<{ url: string; plate: string } | null>(null);
   const [categoryChoices, setCategoryChoices] = useState<Record<string, string>>({});
   const [subCategoryChoices, setSubCategoryChoices] = useState<Record<string, string>>({});
@@ -56,6 +57,11 @@ export function ReadingsPage() {
   const { data: subtypeOptions } = useQuery<HeavySubtypeOptions>({
     queryKey: ['heavy-subtypes'],
     queryFn: async () => (await api.get('/heavy-checks/subtypes')).data,
+  });
+
+  const { data: gratuidadeTypesData } = useQuery<{ gratuidadeTypes: string[] }>({
+    queryKey: ['gratuidade-types'],
+    queryFn: async () => (await api.get('/settings/gratuidade-types')).data,
   });
 
   const subtiposForFilter = useMemo(() => {
@@ -71,12 +77,13 @@ export function ReadingsPage() {
     to: to ? new Date(to).toISOString() : undefined,
     categoryType: filterTipo || undefined,
     subSegment: filterSubSegment || undefined,
+    isGratuidade: filterGratuidade === '' ? undefined : filterGratuidade,
     page,
     limit: 20,
   };
 
   const { data, isLoading } = useQuery({
-    queryKey: ['readings', plate, from, to, filterTipo, filterSubSegment, page],
+    queryKey: ['readings', plate, from, to, filterTipo, filterSubSegment, filterGratuidade, page],
     queryFn: async () => (await api.get('/lpr/readings', { params: queryParams })).data,
   });
 
@@ -190,6 +197,14 @@ export function ReadingsPage() {
             </Select>
           </div>
         )}
+        <div>
+          <p className="text-xs uppercase text-slate-500">Gratuidade</p>
+          <Select value={filterGratuidade} onChange={(e) => { setFilterGratuidade(e.target.value); setPage(1); }}>
+            <option value="">Todos</option>
+            <option value="true">Somente gratuidade</option>
+            <option value="false">Sem gratuidade</option>
+          </Select>
+        </div>
         <div className="flex gap-2 pt-4">
           <Button className="h-9 text-sm" onClick={() => exportFile('csv')}>Exportar CSV</Button>
           <Button className="h-9 text-sm" onClick={() => exportFile('pdf')}>Exportar PDF</Button>
@@ -202,7 +217,7 @@ export function ReadingsPage() {
               <thead><tr><th>Data/hora</th><th>Placa</th><th>Marca/Modelo</th><th>Tipo</th><th>Local</th><th>Câmera</th><th>Confiança</th><th>Duplicada</th><th>Status</th><th></th></tr></thead>
               <tbody>
                 {rows.map((item: any) => (
-                  <tr key={item.id} className="border-t border-slate-100">
+                  <tr key={item.id} className={`border-t border-slate-100${item.vehicle?.isGratuidade ? ' bg-yellow-50' : ''}`}>
                     <td>{formatDateTime(item.capturedAt)}</td>
                     <td>
                       <div className="flex items-center gap-2">
@@ -235,6 +250,9 @@ export function ReadingsPage() {
                           </button>
                         ) : null}
                         <span>{item.normalizedPlate}</span>
+                        {item.vehicle?.isGratuidade && (
+                          <Badge className="bg-yellow-200 text-yellow-800 text-xs">{item.vehicle.gratuidadeType || 'Gratuidade'}</Badge>
+                        )}
                       </div>
                     </td>
                     <td>{`${item.vehicle?.brand || '-'} ${item.vehicle?.model || ''}`}</td>

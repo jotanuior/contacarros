@@ -14,6 +14,7 @@ const menu = [
   { to: '/usuarios', label: 'Usuários' },
   { to: '/auditoria', label: 'Auditoria' },
   { to: '/relatorios', label: 'Relatórios' },
+  { to: '/veiculos', label: 'Veículos' },
   { to: '/configuracoes', label: 'Configurações' },
   { to: '/simulador-webhook', label: 'Simulador Webhook' },
 ];

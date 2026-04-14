@@ -18,12 +18,13 @@ export class VehiclesService {
     return data;
   }
 
-  async list(params: { plate?: string; categoryType?: string } = {}, pagination: PaginationDto = {}) {
+  async list(params: { plate?: string; categoryType?: string; isGratuidade?: boolean } = {}, pagination: PaginationDto = {}) {
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 20;
     const where = {
       plate: params.plate ? { contains: params.plate, mode: 'insensitive' as const } : undefined,
       categoryType: params.categoryType as any,
+      isGratuidade: params.isGratuidade !== undefined ? params.isGratuidade : undefined,
     };
     const [data, total] = await Promise.all([
       this.prisma.vehicle.findMany({
@@ -111,6 +112,20 @@ export class VehiclesService {
         categoryType: mapping.categoryType,
         segment: mapping.categoryType === 'CARRO' ? undefined : mapping.categoryType,
         subSegment: mapping.categoryType === 'CARRO' ? null : mapping.subtype ?? null,
+      },
+    });
+  }
+
+  async setGratuidade(plate: string, isGratuidade: boolean, gratuidadeType?: string | null) {
+    const vehicle = await this.prisma.vehicle.findUnique({ where: { plate } });
+    if (!vehicle) {
+      throw new BadRequestException(`Veículo não encontrado: ${plate}`);
+    }
+    return this.prisma.vehicle.update({
+      where: { plate },
+      data: {
+        isGratuidade,
+        gratuidadeType: isGratuidade ? (gratuidadeType?.trim() || null) : null,
       },
     });
   }

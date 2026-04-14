@@ -22,6 +22,13 @@ export class SettingsController {
     return this.settingsService.listCameraVehicleTypes();
   }
 
+  @Get('gratuidade-types')
+  @Roles('ADMIN', 'OPERADOR', 'AUDITOR', 'VISUALIZADOR')
+  async getGratuidadeTypes() {
+    const raw = await this.settingsService.getValue('GRATUIDADE_TYPES', 'PCD,Carro Oficial,NGISUL');
+    return { gratuidadeTypes: raw.split(',').map((s) => s.trim()).filter(Boolean) };
+  }
+
   @Post()
   @Roles('ADMIN')
   @UseGuards(IpWhitelistGuard)

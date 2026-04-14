@@ -65,6 +65,7 @@ export class ReadingsController {
     @Query('lowConfidence') lowConfidence?: string,
     @Query('categoryType') categoryType?: string,
     @Query('subSegment') subSegment?: string,
+    @Query('isGratuidade') isGratuidade?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -72,6 +73,7 @@ export class ReadingsController {
       page: page ? Number(page) : 1,
       limit: limit ? Math.min(Number(limit), 200) : 20,
     };
+    const gratuidadeFilter = isGratuidade === 'true' ? true : isGratuidade === 'false' ? false : undefined;
     return this.readingsService.list(
       {
         plate,
@@ -82,6 +84,7 @@ export class ReadingsController {
         lowConfidence: lowConfidence === 'true',
         categoryType: categoryType || undefined,
         subSegment: subSegment || undefined,
+        isGratuidade: gratuidadeFilter,
       },
       pagination,
     );

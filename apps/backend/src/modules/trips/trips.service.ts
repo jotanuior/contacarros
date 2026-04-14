@@ -15,12 +15,13 @@ export class TripsService {
     private readonly settingsService: SettingsService,
   ) {}
 
-  async list(filters: { plate?: string; status?: string }, pagination: PaginationDto = {}) {
+  async list(filters: { plate?: string; status?: string; isGratuidade?: boolean }, pagination: PaginationDto = {}) {
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 20;
     const where = {
       plate: filters.plate ? { contains: filters.plate, mode: 'insensitive' as const } : undefined,
       currentStatus: filters.status as any,
+      vehicle: filters.isGratuidade !== undefined ? { isGratuidade: filters.isGratuidade } : undefined,
     };
     const [data, total] = await Promise.all([
       this.prisma.trip.findMany({

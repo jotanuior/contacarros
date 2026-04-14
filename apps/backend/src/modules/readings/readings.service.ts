@@ -492,7 +492,7 @@ export class ReadingsService {
   }
 
   async list(
-    filters: { plate?: string; localId?: string; cameraId?: string; from?: Date; to?: Date; lowConfidence?: boolean; categoryType?: string; subSegment?: string },
+    filters: { plate?: string; localId?: string; cameraId?: string; from?: Date; to?: Date; lowConfidence?: boolean; categoryType?: string; subSegment?: string; isGratuidade?: boolean },
     pagination: PaginationDto = {},
   ) {
     const now = new Date();
@@ -525,7 +525,7 @@ export class ReadingsService {
   }
 
   private buildReadingWhere(
-    filters: { plate?: string; localId?: string; cameraId?: string; lowConfidence?: boolean; categoryType?: string; subSegment?: string },
+    filters: { plate?: string; localId?: string; cameraId?: string; lowConfidence?: boolean; categoryType?: string; subSegment?: string; isGratuidade?: boolean },
     from: Date,
     to: Date,
   ): Prisma.ReadingWhereInput {
@@ -535,6 +535,9 @@ export class ReadingsService {
     }
     if (filters.subSegment) {
       vehicleFilter.subSegment = { contains: filters.subSegment, mode: 'insensitive' };
+    }
+    if (filters.isGratuidade !== undefined) {
+      vehicleFilter.isGratuidade = filters.isGratuidade;
     }
     const hasVehicleFilter = Object.keys(vehicleFilter).length > 0;
 

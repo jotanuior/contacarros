@@ -16,6 +16,7 @@ export class VehiclesController {
   list(
     @Query('plate') plate?: string,
     @Query('categoryType') categoryType?: string,
+    @Query('isGratuidade') isGratuidade?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -23,7 +24,8 @@ export class VehiclesController {
       page: page ? Number(page) : 1,
       limit: limit ? Math.min(Number(limit), 200) : 20,
     };
-    return this.vehiclesService.list({ plate, categoryType }, pagination);
+    const gratuidadeFilter = isGratuidade === 'true' ? true : isGratuidade === 'false' ? false : undefined;
+    return this.vehiclesService.list({ plate, categoryType, isGratuidade: gratuidadeFilter }, pagination);
   }
 
   @Patch(':plate/categorize')
@@ -51,5 +53,21 @@ export class VehiclesController {
     @CurrentUser() user: { id: string },
   ) {
     return this.vehiclesService.correct(plate, user?.id, body);
+  }
+
+  @Patch(':plate/gratuidade')
+  @Roles('ADMIN', 'OPERADOR')
+  async setGratuidade(
+    @Param('plate') plate: string,
+    @Body() body: { isGratuidade: boolean; gratuidadeType?: string | null },
+  ) {
+    if (typeof body?.isGratuidade !== 'boolean') {
+      throw new BadRequestException('isGratuidade deve ser booleano');
+    }
+    try {
+      return await this.vehiclesService.setGratuidade(plate, body.isGratuidade, body.gratuidadeType);
+    } catch {
+      throw new NotFoundException(`Veículo ${plate} não encontrado`);
+    }
   }
 }

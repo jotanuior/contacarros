@@ -41,6 +41,7 @@ export function SettingsPage() {
   const [returnSameLocalCancelMinutes, setReturnSameLocalCancelMinutes] = useState('30');
   const [truckSubtypes, setTruckSubtypes] = useState('');
   const [busSubtypes, setBusSubtypes] = useState('');
+  const [gratuidadeTypes, setGratuidadeTypes] = useState('');
   const [editableRows, setEditableRows] = useState<Record<string, { value: string; description: string }>>({});
   const [cameraTypeRows, setCameraTypeRows] = useState<Record<string, { mappedCategory: string; mappedSubtype: string }>>({});
 
@@ -69,6 +70,7 @@ export function SettingsPage() {
     setReturnSameLocalCancelMinutes(byKey('RETURN_SAME_LOCAL_CANCEL_MINUTES') || '30');
     setTruckSubtypes(byKey('TRUCK_SUBTYPES'));
     setBusSubtypes(byKey('BUS_SUBTYPES'));
+    setGratuidadeTypes(byKey('GRATUIDADE_TYPES') || 'PCD,Carro Oficial,NGISUL');
 
     setEditableRows(
       data.reduce<Record<string, { value: string; description: string }>>((acc, item) => {
@@ -159,6 +161,19 @@ export function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['heavy-subtypes'] });
+    },
+  });
+
+  const gratuidadeMutation = useMutation({
+    mutationFn: async () =>
+      api.post('/settings', {
+        key: 'GRATUIDADE_TYPES',
+        value: gratuidadeTypes,
+        description: 'Tipos de gratuidade (separados por vírgula)',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['gratuidade-types'] });
     },
   });
 
@@ -277,6 +292,21 @@ export function SettingsPage() {
         <div>
           <Button onClick={() => subtypeMutation.mutate()} disabled={subtypeMutation.isPending}>
             Salvar subtipos
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-800">Tipos de Gratuidade</h2>
+          <p className="text-sm text-slate-600">Defina os tipos de gratuidade disponíveis, separados por vírgula (ex: PCD,Carro Oficial,NGISUL).</p>
+        </div>
+        <div className="grid gap-2 md:grid-cols-1">
+          <Input placeholder="ex: PCD,Carro Oficial,NGISUL" value={gratuidadeTypes} onChange={(e) => setGratuidadeTypes(e.target.value)} />
+        </div>
+        <div>
+          <Button onClick={() => gratuidadeMutation.mutate()} disabled={gratuidadeMutation.isPending}>
+            Salvar tipos de gratuidade
           </Button>
         </div>
       </Card>

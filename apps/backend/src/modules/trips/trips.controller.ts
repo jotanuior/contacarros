@@ -15,6 +15,7 @@ export class TripsController {
   list(
     @Query('plate') plate?: string,
     @Query('status') status?: string,
+    @Query('isGratuidade') isGratuidade?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -22,7 +23,8 @@ export class TripsController {
       page: page ? Number(page) : 1,
       limit: limit ? Math.min(Number(limit), 200) : 20,
     };
-    return this.tripsService.list({ plate, status }, pagination);
+    const gratuidadeFilter = isGratuidade === 'true' ? true : isGratuidade === 'false' ? false : undefined;
+    return this.tripsService.list({ plate, status, isGratuidade: gratuidadeFilter }, pagination);
   }
 
   @Get(':id')
