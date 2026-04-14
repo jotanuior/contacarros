@@ -245,10 +245,14 @@ export class ReadingsService {
       (vehicle.categoryType && vehicle.categoryType !== 'DESCONHECIDO'),
     );
 
-    const apiData = await this.placaFipeService.fetchVehicleData(normalizedPlate);
+    const apiData = hasLocalVehicleData ? null : await this.placaFipeService.fetchVehicleData(normalizedPlate);
     if (apiData) {
-      const categoryType = this.placaFipeService.classifyCategory(apiData);
-      vehicle = await this.vehiclesService.upsertFromApi(normalizedPlate, apiData, categoryType);
+      const apiCategoryType = this.placaFipeService.classifyCategory(apiData);
+      // Preserve manually-set categorizations — only override if null/DESCONHECIDO/OUTRO
+      const effectiveCategoryType = this.shouldApplyCameraTypeMapping(vehicle.categoryType)
+        ? apiCategoryType
+        : vehicle.categoryType as string;
+      vehicle = await this.vehiclesService.upsertFromApi(normalizedPlate, apiData, effectiveCategoryType);
       if (trackedCameraVehicleType?.mappedCategory && this.shouldApplyCameraTypeMapping(vehicle.categoryType)) {
         vehicle = await this.vehiclesService.applyCameraTypeMapping(normalizedPlate, {
           categoryType: trackedCameraVehicleType.mappedCategory as 'CARRO' | 'CAMINHAO' | 'ONIBUS',
