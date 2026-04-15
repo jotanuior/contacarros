@@ -4,6 +4,26 @@ import { Button, Card, Input, Select, Table } from '../components/ui';
 import { useState } from 'react';
 import { formatDateTime } from '../lib/utils';
 
+const appBasePath = (import.meta.env.VITE_APP_BASE_PATH || '/').replace(/\/+$/g, '') || '';
+
+function normalizeReadingImageUrl(imageUrl: string | undefined, plate: string) {
+  const fallback = `${appBasePath}/api/media/vehicles/${plate}.jpg`;
+
+  if (!imageUrl) {
+    return fallback;
+  }
+
+  let fixed = imageUrl
+    .replace('/contacarros/media/', '/contacarros/api/media/')
+    .replace('/media/vehicles/', '/api/media/vehicles/');
+
+  if (fixed.startsWith('/api/')) {
+    fixed = `${appBasePath}${fixed}`;
+  }
+
+  return fixed;
+}
+
 type HeavySubtypeOptions = {
   truckSubtypes: string[];
   busSubtypes: string[];
@@ -14,6 +34,7 @@ type HeavyPendingItem = {
   vehicleId: string;
   capturedAt: string;
   normalizedPlate: string;
+  imageUrl?: string;
   location?: { name: string };
   vehicle?: { model?: string; categoryType?: string };
 };
@@ -105,7 +126,33 @@ export function HeavyPage() {
               return (
               <tr key={item.id} className="border-t border-slate-100">
                 <td>{formatDateTime(item.capturedAt)}</td>
-                <td>{item.normalizedPlate}</td>
+                <td>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="rounded border border-slate-200"
+                      title="Miniatura da placa"
+                    >
+                      <img
+                        src={normalizeReadingImageUrl(item.imageUrl, item.normalizedPlate)}
+                        alt={`Veículo ${item.normalizedPlate}`}
+                        className="h-10 w-16 rounded object-cover"
+                        loading="lazy"
+                        onError={(event) => {
+                          const image = event.currentTarget;
+                          if (image.dataset.fallbackTried === '1') {
+                            image.style.display = 'none';
+                            return;
+                          }
+
+                          image.dataset.fallbackTried = '1';
+                          image.src = `${appBasePath}/api/media/vehicles/${item.normalizedPlate}.jpg`;
+                        }}
+                      />
+                    </button>
+                    <span>{item.normalizedPlate}</span>
+                  </div>
+                </td>
                 <td>{item.vehicle?.model || '-'}</td>
                 <td>{item.location?.name}</td>
                 <td>{item.vehicle?.categoryType}</td>
