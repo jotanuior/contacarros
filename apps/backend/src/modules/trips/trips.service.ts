@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { Parser } from 'json2csv';
+import PDFDocument from 'pdfkit';
 import { PrismaService } from '../../common/prisma.service';
 import { PaginatedResponse, PaginationDto } from '../../common/pagination.dto';
 import { RouteRulesService } from '../route-rules/route-rules.service';
@@ -15,13 +17,21 @@ export class TripsService {
     private readonly settingsService: SettingsService,
   ) {}
 
-  async list(filters: { plate?: string; status?: string; isGratuidade?: boolean }, pagination: PaginationDto = {}) {
+  async list(
+    filters: { plate?: string; status?: string; from?: Date; to?: Date; categoryType?: string; subSegment?: string; isGratuidade?: boolean },
+    pagination: PaginationDto = {},
+  ) {
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 20;
+    const vehicleFilter: Record<string, any> = {};
+    if (filters.isGratuidade !== undefined) vehicleFilter.isGratuidade = filters.isGratuidade;
+    if (filters.categoryType) vehicleFilter.categoryType = filters.categoryType;
+    if (filters.subSegment) vehicleFilter.subSegment = { contains: filters.subSegment, mode: 'insensitive' as const };
     const where = {
       plate: filters.plate ? { contains: filters.plate, mode: 'insensitive' as const } : undefined,
       currentStatus: filters.status as any,
-      vehicle: filters.isGratuidade !== undefined ? { isGratuidade: filters.isGratuidade } : undefined,
+      startedAt: filters.from || filters.to ? { gte: filters.from, lte: filters.to } : undefined,
+      vehicle: Object.keys(vehicleFilter).length > 0 ? vehicleFilter : undefined,
     };
     const [data, total] = await Promise.all([
       this.prisma.trip.findMany({
@@ -42,6 +52,126 @@ export class TripsService {
       this.prisma.trip.count({ where }),
     ]);
     return PaginatedResponse.of(data, total, page, limit);
+  }
+
+  async exportTripsCsv(filters: { plate?: string; status?: string; from?: Date; to?: Date; categoryType?: string; subSegment?: string }) {
+    const to = filters.to ?? new Date();
+    const from = filters.from ?? new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const vehicleFilter: Record<string, any> = {};
+    if (filters.categoryType) vehicleFilter.categoryType = filters.categoryType;
+    if (filters.subSegment) vehicleFilter.subSegment = { contains: filters.subSegment, mode: 'insensitive' as const };
+    const where = {
+      plate: filters.plate ? { contains: filters.plate, mode: 'insensitive' as const } : undefined,
+      currentStatus: filters.status as any,
+      startedAt: { gte: from, lte: to },
+      vehicle: Object.keys(vehicleFilter).length > 0 ? vehicleFilter : undefined,
+    };
+    const trips = await this.prisma.trip.findMany({
+      where,
+      select: {
+        plate: true,
+        currentStatus: true,
+        severity: true,
+        startedAt: true,
+        endedAt: true,
+        vehicle: { select: { categoryType: true, subSegment: true } },
+        startLocal: { select: { name: true } },
+        endLocal: { select: { name: true } },
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 5000,
+    });
+    const parser = new Parser({
+      fields: ['startedAt', 'plate', 'tipo', 'subtipo', 'origem', 'destino', 'status', 'severidade', 'endedAt'],
+    });
+    const rows = trips.map((t) => ({
+      startedAt: t.startedAt?.toISOString() ?? '-',
+      plate: t.plate,
+      tipo: t.vehicle?.categoryType ?? '-',
+      subtipo: t.vehicle?.subSegment ?? '-',
+      origem: t.startLocal?.name ?? '-',
+      destino: t.endLocal?.name ?? '-',
+      status: t.currentStatus,
+      severidade: t.severity ?? '-',
+      endedAt: t.endedAt?.toISOString() ?? '-',
+    }));
+    return parser.parse(rows);
+  }
+
+  async exportTripsPdf(filters: { plate?: string; status?: string; from?: Date; to?: Date; categoryType?: string; subSegment?: string }) {
+    const to = filters.to ?? new Date();
+    const from = filters.from ?? new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const vehicleFilter: Record<string, any> = {};
+    if (filters.categoryType) vehicleFilter.categoryType = filters.categoryType;
+    if (filters.subSegment) vehicleFilter.subSegment = { contains: filters.subSegment, mode: 'insensitive' as const };
+    const where = {
+      plate: filters.plate ? { contains: filters.plate, mode: 'insensitive' as const } : undefined,
+      currentStatus: filters.status as any,
+      startedAt: { gte: from, lte: to },
+      vehicle: Object.keys(vehicleFilter).length > 0 ? vehicleFilter : undefined,
+    };
+    const trips = await this.prisma.trip.findMany({
+      where,
+      select: {
+        plate: true,
+        currentStatus: true,
+        severity: true,
+        startedAt: true,
+        endedAt: true,
+        vehicle: { select: { categoryType: true, subSegment: true } },
+        startLocal: { select: { name: true } },
+        endLocal: { select: { name: true } },
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 2000,
+    });
+    const fmt = (d: Date | null) =>
+      d ? d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '-';
+    const buffer = await new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer | Uint8Array) => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+      doc.fontSize(13).text('Relatório de Trajetos');
+      doc.fontSize(9).text(`Período: ${fmt(from)} até ${fmt(to)}`);
+      if (filters.plate) doc.text(`Placa: ${filters.plate}`);
+      if (filters.status) doc.text(`Status: ${filters.status}`);
+      doc.text(`Total: ${trips.length}`);
+      doc.moveDown(0.5);
+      const cols = { inicio: 30, plate: 120, tipo: 195, origem: 265, destino: 380, status: 495, sev: 580, fim: 625 };
+      let y = doc.y;
+      const drawHeader = () => {
+        doc.fontSize(8).font('Helvetica-Bold');
+        doc.text('Início', cols.inicio, y, { width: 85 });
+        doc.text('Placa', cols.plate, y, { width: 70 });
+        doc.text('Tipo', cols.tipo, y, { width: 65 });
+        doc.text('Origem', cols.origem, y, { width: 110 });
+        doc.text('Destino', cols.destino, y, { width: 110 });
+        doc.text('Status', cols.status, y, { width: 80 });
+        doc.text('Sev.', cols.sev, y, { width: 40 });
+        doc.text('Fim', cols.fim, y, { width: 85 });
+        y += 14;
+        doc.moveTo(cols.inicio, y - 2).lineTo(750, y - 2).stroke('#94a3b8');
+        doc.font('Helvetica');
+      };
+      drawHeader();
+      for (const t of trips) {
+        if (y > 530) { doc.addPage(); y = 30; drawHeader(); }
+        doc.fontSize(7);
+        doc.text(fmt(t.startedAt), cols.inicio, y, { width: 85 });
+        doc.text(t.plate, cols.plate, y, { width: 70 });
+        doc.text(t.vehicle?.categoryType ?? '-', cols.tipo, y, { width: 65 });
+        doc.text(t.startLocal?.name ?? '-', cols.origem, y, { width: 110 });
+        doc.text(t.endLocal?.name ?? '-', cols.destino, y, { width: 110 });
+        doc.text(t.currentStatus, cols.status, y, { width: 80 });
+        doc.text(t.severity ?? '-', cols.sev, y, { width: 40 });
+        doc.text(fmt(t.endedAt), cols.fim, y, { width: 85 });
+        y += 12;
+      }
+      doc.end();
+    });
+    return buffer;
   }
 
   findById(id: string) {
