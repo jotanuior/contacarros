@@ -47,6 +47,7 @@ type RowForm = {
 export function HeavyPage() {
   const queryClient = useQueryClient();
   const [formByReadingId, setFormByReadingId] = useState<Record<string, RowForm>>({});
+  const [selectedImage, setSelectedImage] = useState<{ url: string; plate: string } | null>(null);
 
   const { data } = useQuery<HeavyPendingItem[]>({
     queryKey: ['heavy-pending'],
@@ -131,6 +132,10 @@ export function HeavyPage() {
                     <button
                       type="button"
                       className="rounded border border-slate-200"
+                      onClick={() => setSelectedImage({
+                        url: normalizeReadingImageUrl(item.imageUrl, item.normalizedPlate),
+                        plate: item.normalizedPlate,
+                      })}
                       title="Miniatura da placa"
                     >
                       <img
@@ -176,6 +181,43 @@ export function HeavyPage() {
           </tbody>
         </Table>
       </Card>
+
+      {selectedImage ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div
+            className="w-full max-w-5xl rounded-lg bg-white p-3 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-800">Placa {selectedImage.plate}</h2>
+              <Button
+                className="h-8 px-3 text-xs bg-slate-600 hover:bg-slate-500"
+                onClick={() => setSelectedImage(null)}
+              >
+                Fechar
+              </Button>
+            </div>
+            <img
+              src={selectedImage.url}
+              alt={`Imagem ampliada ${selectedImage.plate}`}
+              className="max-h-[80vh] w-full rounded object-contain bg-slate-100"
+              onError={(event) => {
+                const image = event.currentTarget;
+                if (image.dataset.fallbackTried === '1') {
+                  image.style.display = 'none';
+                  return;
+                }
+
+                image.dataset.fallbackTried = '1';
+                image.src = `${appBasePath}/api/media/vehicles/${selectedImage.plate}.jpg`;
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
