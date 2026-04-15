@@ -54,12 +54,13 @@ export class TripsService {
     return PaginatedResponse.of(data, total, page, limit);
   }
 
-  async exportTripsCsv(filters: { plate?: string; status?: string; from?: Date; to?: Date; categoryType?: string; subSegment?: string }) {
+  async exportTripsCsv(filters: { plate?: string; status?: string; from?: Date; to?: Date; categoryType?: string; subSegment?: string; isGratuidade?: boolean }) {
     const to = filters.to ?? new Date();
     const from = filters.from ?? new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
     const vehicleFilter: Record<string, any> = {};
     if (filters.categoryType) vehicleFilter.categoryType = filters.categoryType;
     if (filters.subSegment) vehicleFilter.subSegment = { contains: filters.subSegment, mode: 'insensitive' as const };
+    if (filters.isGratuidade !== undefined) vehicleFilter.isGratuidade = filters.isGratuidade;
     const where = {
       plate: filters.plate ? { contains: filters.plate, mode: 'insensitive' as const } : undefined,
       currentStatus: filters.status as any,
@@ -98,12 +99,13 @@ export class TripsService {
     return parser.parse(rows);
   }
 
-  async exportTripsPdf(filters: { plate?: string; status?: string; from?: Date; to?: Date; categoryType?: string; subSegment?: string }) {
+  async exportTripsPdf(filters: { plate?: string; status?: string; from?: Date; to?: Date; categoryType?: string; subSegment?: string; isGratuidade?: boolean }) {
     const to = filters.to ?? new Date();
     const from = filters.from ?? new Date(to.getTime() - 7 * 24 * 60 * 60 * 1000);
     const vehicleFilter: Record<string, any> = {};
     if (filters.categoryType) vehicleFilter.categoryType = filters.categoryType;
     if (filters.subSegment) vehicleFilter.subSegment = { contains: filters.subSegment, mode: 'insensitive' as const };
+    if (filters.isGratuidade !== undefined) vehicleFilter.isGratuidade = filters.isGratuidade;
     const where = {
       plate: filters.plate ? { contains: filters.plate, mode: 'insensitive' as const } : undefined,
       currentStatus: filters.status as any,

@@ -53,8 +53,10 @@ export class TripsController {
     @Query('to') to?: string,
     @Query('categoryType') categoryType?: string,
     @Query('subSegment') subSegment?: string,
+    @Query('isGratuidade') isGratuidade?: string,
     @Res() res?: Response,
   ) {
+    const gratuidadeFilter = isGratuidade === 'true' ? true : isGratuidade === 'false' ? false : undefined;
     const filters = {
       plate: plate || undefined,
       status: status || undefined,
@@ -62,6 +64,7 @@ export class TripsController {
       to: to ? new Date(to) : undefined,
       categoryType: categoryType || undefined,
       subSegment: subSegment || undefined,
+      isGratuidade: gratuidadeFilter,
     };
     const normalized = (format || 'csv').toLowerCase();
     if (normalized === 'csv') {
