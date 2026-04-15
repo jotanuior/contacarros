@@ -145,13 +145,10 @@ export class VehiclesService {
     }
 
     const updateData: Record<string, unknown> = {};
+    let normalizedNewPlate: string | undefined;
     if (data.newPlate && data.newPlate.trim() !== plate) {
-      const normalizedNew = data.newPlate.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      const conflict = await this.prisma.vehicle.findUnique({ where: { plate: normalizedNew } });
-      if (conflict) {
-        throw new BadRequestException(`Placa ${normalizedNew} já existe no sistema`);
-      }
-      updateData.plate = normalizedNew;
+      normalizedNewPlate = data.newPlate.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      updateData.plate = normalizedNewPlate;
     }
     if (data.categoryType) {
       updateData.categoryType = data.categoryType;
@@ -168,10 +165,104 @@ export class VehiclesService {
       throw new BadRequestException('Nenhum campo de correção informado');
     }
 
-    const updated = await this.prisma.vehicle.update({
-      where: { plate },
-      data: updateData as import('@prisma/client').Prisma.VehicleUpdateInput,
-    });
+    let updated = vehicle;
+
+    if (normalizedNewPlate) {
+      const targetVehicle = await this.prisma.vehicle.findUnique({ where: { plate: normalizedNewPlate } });
+
+      // If target plate already exists, merge all references from source plate into target.
+      if (targetVehicle && targetVehicle.id !== vehicle.id) {
+        updated = await this.prisma.$transaction(async (tx) => {
+          await tx.reading.updateMany({
+            where: {
+              OR: [
+                { vehicleId: vehicle.id },
+                { normalizedPlate: plate },
+              ],
+            },
+            data: {
+              vehicleId: targetVehicle.id,
+              normalizedPlate: normalizedNewPlate,
+              plate: normalizedNewPlate,
+            },
+          });
+
+          await tx.trip.updateMany({
+            where: {
+              OR: [
+                { vehicleId: vehicle.id },
+                { plate },
+              ],
+            },
+            data: {
+              vehicleId: targetVehicle.id,
+              plate: normalizedNewPlate,
+            },
+          });
+
+          await tx.alert.updateMany({
+            where: { plate },
+            data: { plate: normalizedNewPlate },
+          });
+
+          await tx.heavyVehicleCheck.updateMany({
+            where: { vehicleId: vehicle.id },
+            data: { vehicleId: targetVehicle.id },
+          });
+
+          const targetUpdateData: Record<string, unknown> = {};
+          if (data.categoryType) {
+            targetUpdateData.categoryType = data.categoryType;
+            if ((data.categoryType === 'CARRO' || data.categoryType === 'OUTRO') && data.subSegment === undefined) {
+              targetUpdateData.subSegment = null;
+            }
+          }
+          if (data.subSegment !== undefined) {
+            targetUpdateData.subSegment = data.subSegment || null;
+          }
+
+          if (Object.keys(targetUpdateData).length > 0) {
+            await tx.vehicle.update({
+              where: { id: targetVehicle.id },
+              data: targetUpdateData as import('@prisma/client').Prisma.VehicleUpdateInput,
+            });
+          }
+
+          await tx.vehicle.delete({ where: { id: vehicle.id } });
+
+          return tx.vehicle.findUniqueOrThrow({ where: { id: targetVehicle.id } });
+        });
+      } else {
+        updated = await this.prisma.$transaction(async (tx) => {
+          const vehicleUpdated = await tx.vehicle.update({
+            where: { plate },
+            data: updateData as import('@prisma/client').Prisma.VehicleUpdateInput,
+          });
+
+          await tx.reading.updateMany({
+            where: { normalizedPlate: plate },
+            data: { normalizedPlate: normalizedNewPlate, plate: normalizedNewPlate },
+          });
+
+          await tx.trip.updateMany({
+            where: { plate },
+            data: { plate: normalizedNewPlate },
+          });
+
+          await tx.alert.updateMany({
+            where: { plate },
+            data: { plate: normalizedNewPlate },
+          });
+
+          return vehicleUpdated;
+        });
+      }
+    } else {
+      updated = await this.prisma.vehicle.update({
+        where: { plate },
+        data: updateData as import('@prisma/client').Prisma.VehicleUpdateInput,
+      });
+    }
 
     await this.auditLogs.create({
       userId,
