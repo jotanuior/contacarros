@@ -1,5 +1,5 @@
 import { BadRequestException, Controller, Get, Param, Query, Res, UseGuards } from '@nestjs/common';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { TripsService } from './trips.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
