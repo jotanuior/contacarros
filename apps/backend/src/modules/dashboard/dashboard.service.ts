@@ -9,9 +9,29 @@ export class DashboardService {
   private readonly countedStatuses = new Set(['CONCLUIDO_OK', 'CONCLUIDO_ATENCAO', 'SEM_SAIDA']);
   private readonly dashboardTimezone = process.env.DASHBOARD_TIMEZONE || process.env.APP_TIMEZONE || 'America/Sao_Paulo';
 
-  private buildTripWhere(start: Date, end: Date): Prisma.TripWhereInput {
+  private buildTripWhere(
+    start: Date,
+    end: Date,
+    filters?: { plate?: string; status?: string; categoryType?: string; subSegment?: string; isGratuidade?: boolean; startLocalId?: string },
+  ): Prisma.TripWhereInput {
+    const vehicleFilter: Prisma.VehicleWhereInput = {};
+    if (filters?.categoryType) {
+      vehicleFilter.categoryType = filters.categoryType as Prisma.EnumVehicleCategoryTypeFilter['equals'];
+    }
+    if (filters?.subSegment) {
+      vehicleFilter.subSegment = { contains: filters.subSegment, mode: 'insensitive' };
+    }
+    if (filters?.isGratuidade !== undefined) {
+      vehicleFilter.isGratuidade = filters.isGratuidade;
+    }
+    const hasVehicleFilter = Object.keys(vehicleFilter).length > 0;
+
     return {
       startedAt: { gte: start, lte: end },
+      plate: filters?.plate ? { contains: filters.plate.toUpperCase() } : undefined,
+      currentStatus: filters?.status as Prisma.EnumTripStatusFilter['equals'],
+      startLocalId: filters?.startLocalId || undefined,
+      vehicle: hasVehicleFilter ? vehicleFilter : undefined,
     };
   }
 
@@ -70,7 +90,17 @@ export class DashboardService {
     return `${year}-${month}-${day}`;
   }
 
-  async getDaily(params?: { date?: string; from?: string; to?: string }) {
+  async getDaily(params?: {
+    date?: string;
+    from?: string;
+    to?: string;
+    plate?: string;
+    status?: string;
+    categoryType?: string;
+    subSegment?: string;
+    isGratuidade?: boolean;
+    startLocalId?: string;
+  }) {
     const from = params?.from ? this.parseDateBoundary(params.from, false) : null;
     const to = params?.to ? this.parseDateBoundary(params.to, true) : null;
 
@@ -98,7 +128,14 @@ export class DashboardService {
       end = temp;
     }
 
-    const tripWhere = this.buildTripWhere(start, end);
+    const tripWhere = this.buildTripWhere(start, end, {
+      plate: params?.plate,
+      status: params?.status,
+      categoryType: params?.categoryType,
+      subSegment: params?.subSegment,
+      isGratuidade: params?.isGratuidade,
+      startLocalId: params?.startLocalId,
+    });
 
     const [candidateTrips, heavyPending, openTrips, lastAlerts, latestTrip] = await Promise.all([
       this.prisma.trip.findMany({
@@ -142,6 +179,7 @@ export class DashboardService {
     const tripsByStatusMap = new Map<string, number>();
     const tripsByHourMap = new Map<number, number>();
     const tripsByLocalMap = new Map<string, number>();
+    const subtypeByTypeMap = new Map<string, number>();
 
     const categoryCountMap: Record<'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO' | 'DESCONHECIDO', number> = {
       CARRO: 0,
@@ -163,6 +201,10 @@ export class DashboardService {
 
       const category = this.getTripCategory(trip);
       categoryCountMap[category as keyof typeof categoryCountMap] += 1;
+
+      const subtype = trip.vehicle?.subSegment || 'Sem subtipo';
+      const subtypeKey = `${category}::${subtype}`;
+      subtypeByTypeMap.set(subtypeKey, (subtypeByTypeMap.get(subtypeKey) || 0) + 1);
     }
 
     const tripsByStatus = Array.from(tripsByStatusMap.entries()).map(([currentStatus, count]) => ({
@@ -185,6 +227,11 @@ export class DashboardService {
       startLocalId,
       _count: count,
     }));
+
+    const subtypeByType = Array.from(subtypeByTypeMap.entries()).map(([key, value]) => {
+      const [tipo, subtipo] = key.split('::');
+      return { tipo, subtipo, quantidade: value };
+    });
 
     const lastTrips = filteredTrips.slice(0, 20).map((trip) => ({
       ...trip,
@@ -209,6 +256,7 @@ export class DashboardService {
         vehicleType: Object.entries(categoryCountMap).map(([name, value]) => ({ name, value })),
         tripStatus: tripsByStatus.map((x: { currentStatus: string; _count: number }) => ({ name: x.currentStatus, value: x._count })),
         tripsByHour,
+        subtypeByType,
         tripsByLocal: tripsByLocal.map((x: { startLocalId: string; _count: number }) => ({
           localId: x.startLocalId,
           localName: locationMap.get(x.startLocalId) || x.startLocalId,

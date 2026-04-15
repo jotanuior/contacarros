@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { Card, CardTitle, Input, Table } from '../components/ui';
+import { Card, CardTitle, Input, Select, Table } from '../components/ui';
 import { PieChart, Pie, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { formatDateTime } from '../lib/utils';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -12,34 +12,57 @@ type QuantitativeRow = {
   quantidade: number;
 };
 
-type QuantitativeResponse = {
-  rows: QuantitativeRow[];
-};
-
-function formatLocalDate(date: Date): string {
+function toDateTimeLocal(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, '0');
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 export function DashboardPage() {
-  const today = useMemo(() => formatLocalDate(new Date()), []);
-  const [fromDate, setFromDate] = useState(today);
-  const [toDate, setToDate] = useState(today);
+  const [fromDateTime, setFromDateTime] = useState(() => toDateTimeLocal(new Date(Date.now() - 24 * 60 * 60 * 1000)));
+  const [toDateTime, setToDateTime] = useState(() => toDateTimeLocal(new Date()));
+  const [plate, setPlate] = useState('');
+  const [status, setStatus] = useState('');
+  const [filterTipo, setFilterTipo] = useState('');
+  const [filterSubSegment, setFilterSubSegment] = useState('');
+  const [filterGratuidade, setFilterGratuidade] = useState('');
+  const [startLocalId, setStartLocalId] = useState('');
   const [selectedSubtypeType, setSelectedSubtypeType] = useState<'CAMINHAO' | 'ONIBUS' | null>(null);
   const drawerCloseButtonRef = useRef<HTMLButtonElement>(null);
   const autoFallbackAppliedRef = useRef(false);
 
+  const queryParams = {
+    from: fromDateTime ? new Date(fromDateTime).toISOString() : undefined,
+    to: toDateTime ? new Date(toDateTime).toISOString() : undefined,
+    plate: plate || undefined,
+    status: status || undefined,
+    categoryType: filterTipo || undefined,
+    subSegment: filterSubSegment || undefined,
+    isGratuidade: filterGratuidade === '' ? undefined : filterGratuidade,
+    startLocalId: startLocalId || undefined,
+  };
+
   const { data, isLoading } = useQuery({
-    queryKey: ['dashboard-daily', fromDate, toDate],
-    queryFn: async () => (await api.get('/dashboard/daily', { params: { from: fromDate, to: toDate } })).data,
+    queryKey: ['dashboard-daily', fromDateTime, toDateTime, plate, status, filterTipo, filterSubSegment, filterGratuidade, startLocalId],
+    queryFn: async () => (await api.get('/dashboard/daily', { params: queryParams })).data,
     refetchInterval: 30000,
   });
 
-  const { data: quantitativeData } = useQuery<QuantitativeResponse>({
-    queryKey: ['reports-quantitative-dashboard', fromDate, toDate],
-    queryFn: async () => (await api.get('/reports/quantitative', { params: { from: fromDate, to: toDate } })).data,
+  const { data: subtypeOptions } = useQuery<{ truckSubtypes: string[]; busSubtypes: string[] }>({
+    queryKey: ['heavy-subtypes'],
+    queryFn: async () => (await api.get('/heavy-checks/subtypes')).data,
+  });
+
+  const { data: locations } = useQuery<Array<{ id: string; name: string }>>({
+    queryKey: ['locations-dashboard-filter'],
+    queryFn: async () => {
+      const response = await api.get('/locations', { params: { page: 1, limit: 200 } });
+      return response.data?.data || [];
+    },
   });
 
   const cards = data?.cards || {};
@@ -82,23 +105,30 @@ export function DashboardPage() {
     name: tripStatusLabels[item.name] || item.name,
   }));
 
-  const selectedTipoLabel = selectedSubtypeType ? vehicleLabels[selectedSubtypeType] : '';
-  const subtypeRows = (quantitativeData?.rows || []).filter((row) => row.tipo === selectedTipoLabel);
-  const subtypeTotal = subtypeRows.reduce((acc, row) => acc + row.quantidade, 0);
+  const selectedTipoCode = selectedSubtypeType || '';
+  const selectedTipoLabel = selectedSubtypeType ? (vehicleLabels[selectedSubtypeType] || selectedSubtypeType) : '';
+  const subtypeRows: QuantitativeRow[] = (data?.charts?.subtypeByType || []).filter((row: QuantitativeRow) => row.tipo === selectedTipoCode);
+  const subtypeTotal = subtypeRows.reduce((acc: number, row: QuantitativeRow) => acc + row.quantidade, 0);
+  const subtiposForFilter = useMemo(() => {
+    if (filterTipo === 'CAMINHAO') return subtypeOptions?.truckSubtypes ?? [];
+    if (filterTipo === 'ONIBUS') return subtypeOptions?.busSubtypes ?? [];
+    return [];
+  }, [filterTipo, subtypeOptions]);
 
   useEffect(() => {
-    const isTodayRange = fromDate === today && toDate === today;
+    const todayLocal = toDateTimeLocal(new Date()).slice(0, 10);
+    const isTodayRange = fromDateTime.slice(0, 10) === todayLocal && toDateTime.slice(0, 10) === todayLocal;
     const hasNoTrips = Number(cards.totalTrips || 0) === 0;
     const lastTripDate = data?.meta?.lastTripDate as string | null | undefined;
 
-    if (!isTodayRange || !hasNoTrips || !lastTripDate || lastTripDate === today || autoFallbackAppliedRef.current) {
+    if (!isTodayRange || !hasNoTrips || !lastTripDate || lastTripDate === todayLocal || autoFallbackAppliedRef.current) {
       return;
     }
 
     autoFallbackAppliedRef.current = true;
-    setFromDate(lastTripDate);
-    setToDate(lastTripDate);
-  }, [fromDate, toDate, today, cards.totalTrips, data?.meta?.lastTripDate]);
+    setFromDateTime(`${lastTripDate}T00:00`);
+    setToDateTime(`${lastTripDate}T23:59`);
+  }, [fromDateTime, toDateTime, cards.totalTrips, data?.meta?.lastTripDate]);
 
   useEffect(() => {
     if (!selectedSubtypeType) return;
@@ -122,14 +152,68 @@ export function DashboardPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Dashboard operacional</h1>
-      <Card className="flex flex-col gap-2 md:flex-row md:items-end md:gap-3">
+      <Card className="flex flex-wrap gap-2 items-end">
         <div>
-          <p className="text-xs uppercase text-slate-500">Data inicial</p>
-          <Input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          <p className="text-xs uppercase text-slate-500">Placa</p>
+          <Input placeholder="Filtrar placa" value={plate} onChange={(e) => setPlate(e.target.value)} />
         </div>
         <div>
-          <p className="text-xs uppercase text-slate-500">Data final</p>
-          <Input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+          <p className="text-xs uppercase text-slate-500">De</p>
+          <Input type="datetime-local" value={fromDateTime} onChange={(e) => setFromDateTime(e.target.value)} />
+        </div>
+        <div>
+          <p className="text-xs uppercase text-slate-500">Até</p>
+          <Input type="datetime-local" value={toDateTime} onChange={(e) => setToDateTime(e.target.value)} />
+        </div>
+        <div>
+          <p className="text-xs uppercase text-slate-500">Status</p>
+          <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="">Todos</option>
+            <option value="EM_ANDAMENTO">EM_ANDAMENTO</option>
+            <option value="CONCLUIDO_OK">CONCLUIDO_OK</option>
+            <option value="CONCLUIDO_ATENCAO">CONCLUIDO_ATENCAO</option>
+            <option value="CANCELADO">CANCELADO</option>
+            <option value="SEM_SAIDA">SEM_SAIDA</option>
+            <option value="INCONSISTENTE">INCONSISTENTE</option>
+            <option value="PENDENTE_VALIDACAO">PENDENTE_VALIDACAO</option>
+          </Select>
+        </div>
+        <div>
+          <p className="text-xs uppercase text-slate-500">Tipo</p>
+          <Select value={filterTipo} onChange={(e) => { setFilterTipo(e.target.value); setFilterSubSegment(''); }}>
+            <option value="">Todos</option>
+            <option value="CARRO">Carro</option>
+            <option value="CAMINHAO">Caminhão</option>
+            <option value="ONIBUS">Ônibus</option>
+            <option value="OUTRO">Outro</option>
+            <option value="DESCONHECIDO">Desconhecido</option>
+          </Select>
+        </div>
+        {subtiposForFilter.length > 0 && (
+          <div>
+            <p className="text-xs uppercase text-slate-500">Subtipo</p>
+            <Select value={filterSubSegment} onChange={(e) => setFilterSubSegment(e.target.value)}>
+              <option value="">Todos</option>
+              {subtiposForFilter.map((s) => <option key={s} value={s}>{s}</option>)}
+            </Select>
+          </div>
+        )}
+        <div>
+          <p className="text-xs uppercase text-slate-500">Gratuidade</p>
+          <Select value={filterGratuidade} onChange={(e) => setFilterGratuidade(e.target.value)}>
+            <option value="">Todos</option>
+            <option value="true">Somente gratuidade</option>
+            <option value="false">Sem gratuidade</option>
+          </Select>
+        </div>
+        <div>
+          <p className="text-xs uppercase text-slate-500">Local de partida</p>
+          <Select value={startLocalId} onChange={(e) => setStartLocalId(e.target.value)}>
+            <option value="">Todos</option>
+            {(locations || []).map((location) => (
+              <option key={location.id} value={location.id}>{location.name}</option>
+            ))}
+          </Select>
         </div>
       </Card>
 
@@ -237,7 +321,7 @@ export function DashboardPage() {
             <div className="mb-3 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold">Subcategorias de {selectedTipoLabel}</h2>
-                <p className="text-xs text-slate-500">Total checado: {subtypeTotal}</p>
+                <p className="text-xs text-slate-500">Total filtrado: {subtypeTotal}</p>
               </div>
               <button
                 type="button"

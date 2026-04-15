@@ -11,7 +11,28 @@ export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('daily')
-  daily(@Query('date') date?: string, @Query('from') from?: string, @Query('to') to?: string) {
-    return this.dashboardService.getDaily({ date, from, to });
+  daily(
+    @Query('date') date?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('plate') plate?: string,
+    @Query('status') status?: string,
+    @Query('categoryType') categoryType?: string,
+    @Query('subSegment') subSegment?: string,
+    @Query('isGratuidade') isGratuidade?: string,
+    @Query('startLocalId') startLocalId?: string,
+  ) {
+    const gratuidadeFilter = isGratuidade === 'true' ? true : isGratuidade === 'false' ? false : undefined;
+    return this.dashboardService.getDaily({
+      date,
+      from,
+      to,
+      plate,
+      status,
+      categoryType,
+      subSegment,
+      isGratuidade: gratuidadeFilter,
+      startLocalId,
+    });
   }
 }
