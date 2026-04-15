@@ -206,6 +206,7 @@ export class TripsService {
     if (!openTrip) {
       const returnSameLocalCancelMinutes = await this.settingsService.getNumber('RETURN_SAME_LOCAL_CANCEL_MINUTES', 30);
       const tripWindowMinutes = await this.settingsService.getNumber('TRIP_WINDOW_MINUTES', 30);
+      const enforceRouteRules = await this.settingsService.getBoolean('TRIPS_ENFORCE_ROUTE_RULES', true);
       const latestClosedTrip = await this.prisma.trip.findFirst({
         where: {
           plate: input.plate,
@@ -329,6 +330,39 @@ export class TripsService {
           return rescued;
         }
       }
+
+      if (!enforceRouteRules) {
+        const singlePointTrip = await this.prisma.trip.create({
+          data: {
+            plate: input.plate,
+            vehicleId: input.vehicleId,
+            startReadingId: input.readingId,
+            endReadingId: input.readingId,
+            startLocalId: input.localId,
+            endLocalId: input.localId,
+            startedAt: input.capturedAt,
+            endedAt: input.capturedAt,
+            closedAt: input.capturedAt,
+            currentStatus: 'CONCLUIDO_OK',
+            severity: 'BAIXA',
+            conclusionType: 'Fechado em ponto unico (sem validacao por rota)',
+          },
+        });
+
+        await this.prisma.tripEvent.create({
+          data: {
+            tripId: singlePointTrip.id,
+            readingId: input.readingId,
+            localId: input.localId,
+            cameraId: input.cameraId,
+            eventAt: input.capturedAt,
+            sequence: 1,
+          },
+        });
+
+        return singlePointTrip;
+      }
+
       const expectedUntil = new Date(input.capturedAt.getTime() + tripWindowMinutes * 60 * 1000);
 
       const trip = await this.prisma.trip.create({

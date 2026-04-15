@@ -449,7 +449,7 @@ export function SettingsPage() {
       <Card className="space-y-3">
         <div>
           <h2 className="text-sm font-semibold text-slate-800">Validação de regra de rota no fechamento de trajetos</h2>
-          <p className="text-sm text-slate-600">Quando true, o sistema usa as regras de rota para definir o status final. Quando false, fecha como CONCLUIDO_OK ao detectar saída.</p>
+          <p className="text-sm text-slate-600">Quando true, o sistema usa as regras de rota para definir o status final. Quando false, fecha automaticamente como CONCLUIDO_OK no primeiro ponto.</p>
         </div>
         <div className="grid gap-2 md:grid-cols-2">
           <Input
