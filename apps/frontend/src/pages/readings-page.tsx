@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { Badge, Button, Card, Input, Pagination, Select, Table } from '../components/ui';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { formatDateTime } from '../lib/utils';
 
 type HeavySubtypeOptions = {
@@ -47,7 +47,7 @@ export function ReadingsPage() {
   const [filterTipo, setFilterTipo] = useState('');
   const [filterSubSegment, setFilterSubSegment] = useState('');
   const [filterGratuidade, setFilterGratuidade] = useState('');
-  const [selectedImage, setSelectedImage] = useState<{ url: string; plate: string } | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(null);
   const [categoryChoices, setCategoryChoices] = useState<Record<string, string>>({});
   const [subCategoryChoices, setSubCategoryChoices] = useState<Record<string, string>>({});
   const [correctTarget, setCorrectTarget] = useState<{ plate: string; categoryType: string; subSegment: string } | null>(null);
@@ -87,8 +87,67 @@ export function ReadingsPage() {
 
   const rows: any[] = data?.data ?? [];
   const totalPages: number = data?.totalPages ?? 1;
+  const previewImages = useMemo(
+    () => rows.map((item) => ({
+      rowId: item.id,
+      url: normalizeReadingImageUrl(item.imageUrl, item.normalizedPlate),
+      plate: item.normalizedPlate,
+    })),
+    [rows],
+  );
+  const selectedImage = selectedImageIndex !== null ? (previewImages[selectedImageIndex] ?? null) : null;
   const selectedItems = rows.filter((item) => selectedRows[item.id]);
   const selectedPlates = Array.from(new Set(selectedItems.map((item) => item.normalizedPlate)));
+
+  useEffect(() => {
+    if (selectedImageIndex === null) {
+      return;
+    }
+
+    if (!previewImages.length) {
+      setSelectedImageIndex(null);
+      return;
+    }
+
+    if (selectedImageIndex >= previewImages.length) {
+      setSelectedImageIndex(previewImages.length - 1);
+    }
+  }, [selectedImageIndex, previewImages.length]);
+
+  useEffect(() => {
+    if (selectedImageIndex === null || !previewImages.length) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedImageIndex(null);
+        return;
+      }
+
+      if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        setSelectedImageIndex((current) => {
+          if (current === null) return 0;
+          return (current + 1) % previewImages.length;
+        });
+        return;
+      }
+
+      if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+        event.preventDefault();
+        setSelectedImageIndex((current) => {
+          if (current === null) return 0;
+          return (current - 1 + previewImages.length) % previewImages.length;
+        });
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [selectedImageIndex, previewImages.length]);
 
   const categorizeMutation = useMutation({
     mutationFn: async ({ plate: p, categoryType, subSegment }: { plate: string; categoryType: string; subSegment?: string }) =>
@@ -315,10 +374,10 @@ export function ReadingsPage() {
                           <button
                             type="button"
                             className="rounded border border-slate-200"
-                            onClick={() => setSelectedImage({
-                              url: normalizeReadingImageUrl(item.imageUrl, item.normalizedPlate),
-                              plate: item.normalizedPlate,
-                            })}
+                            onClick={() => {
+                              const index = previewImages.findIndex((image) => image.rowId === item.id);
+                              setSelectedImageIndex(index >= 0 ? index : null);
+                            }}
                             title="Clique para ampliar"
                           >
                             <img
@@ -480,21 +539,45 @@ export function ReadingsPage() {
       {selectedImage ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-          onClick={() => setSelectedImage(null)}
+          onClick={() => setSelectedImageIndex(null)}
         >
           <div
             className="max-h-full w-full max-w-5xl rounded-lg bg-white p-3 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-800">Placa {selectedImage.plate}</h2>
-              <button
-                type="button"
-                className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
-                onClick={() => setSelectedImage(null)}
-              >
-                Fechar
-              </button>
+              <h2 className="text-sm font-semibold text-slate-800">
+                Placa {selectedImage.plate} ({(selectedImageIndex ?? 0) + 1}/{previewImages.length})
+              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                  onClick={() => setSelectedImageIndex((current) => {
+                    if (current === null || !previewImages.length) return null;
+                    return (current - 1 + previewImages.length) % previewImages.length;
+                  })}
+                >
+                  Anterior
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                  onClick={() => setSelectedImageIndex((current) => {
+                    if (current === null || !previewImages.length) return null;
+                    return (current + 1) % previewImages.length;
+                  })}
+                >
+                  Próxima
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
+                  onClick={() => setSelectedImageIndex(null)}
+                >
+                  Fechar
+                </button>
+              </div>
             </div>
             <img
               src={selectedImage.url}
