@@ -28,6 +28,27 @@ export class VehiclesController {
     return this.vehiclesService.list({ plate, categoryType, isGratuidade: gratuidadeFilter }, pagination);
   }
 
+  @Patch('categorize/bulk')
+  @Roles('ADMIN', 'OPERADOR')
+  async categorizeBulk(
+    @Body() body: { plates: string[]; categoryType: string; subSegment?: string },
+  ) {
+    const allowed = ['CARRO', 'CAMINHAO', 'ONIBUS', 'OUTRO'];
+    if (!allowed.includes(body?.categoryType)) {
+      throw new BadRequestException(`categoryType inválido. Use: ${allowed.join(', ')}`);
+    }
+
+    if (!Array.isArray(body?.plates) || !body.plates.length) {
+      throw new BadRequestException('plates deve conter ao menos uma placa');
+    }
+
+    return this.vehiclesService.categorizeBulk(
+      body.plates,
+      body.categoryType as 'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO',
+      body.subSegment,
+    );
+  }
+
   @Patch(':plate/categorize')
   @Roles('ADMIN', 'OPERADOR')
   async categorize(

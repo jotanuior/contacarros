@@ -52,6 +52,9 @@ export function ReadingsPage() {
   const [subCategoryChoices, setSubCategoryChoices] = useState<Record<string, string>>({});
   const [correctTarget, setCorrectTarget] = useState<{ plate: string; categoryType: string; subSegment: string } | null>(null);
   const [correctForm, setCorrectForm] = useState({ newPlate: '', categoryType: '', subSegment: '', justification: '' });
+  const [selectedRows, setSelectedRows] = useState<Record<string, boolean>>({});
+  const [bulkCategoryType, setBulkCategoryType] = useState('');
+  const [bulkSubSegment, setBulkSubSegment] = useState('');
   const queryClient = useQueryClient();
 
   const { data: subtypeOptions } = useQuery<HeavySubtypeOptions>({
@@ -84,6 +87,8 @@ export function ReadingsPage() {
 
   const rows: any[] = data?.data ?? [];
   const totalPages: number = data?.totalPages ?? 1;
+  const selectedItems = rows.filter((item) => selectedRows[item.id]);
+  const selectedPlates = Array.from(new Set(selectedItems.map((item) => item.normalizedPlate)));
 
   const categorizeMutation = useMutation({
     mutationFn: async ({ plate: p, categoryType, subSegment }: { plate: string; categoryType: string; subSegment?: string }) =>
@@ -95,6 +100,24 @@ export function ReadingsPage() {
     },
     onError: (error: any) => {
       window.alert(error?.response?.data?.message ?? 'Falha ao categorizar veículo');
+    },
+  });
+
+  const bulkCategorizeMutation = useMutation({
+    mutationFn: async ({ plates, categoryType, subSegment }: { plates: string[]; categoryType: string; subSegment?: string }) =>
+      api.patch('/vehicles/categorize/bulk', { plates, categoryType, subSegment: subSegment || undefined }),
+    onSuccess: (response: any) => {
+      const result = response?.data;
+      queryClient.invalidateQueries({ queryKey: ['readings'] });
+      setSelectedRows({});
+      setBulkCategoryType('');
+      setBulkSubSegment('');
+      if (result?.notFoundPlates?.length) {
+        window.alert(`Recategorização parcial. Não encontradas: ${result.notFoundPlates.join(', ')}`);
+      }
+    },
+    onError: (error: any) => {
+      window.alert(error?.response?.data?.message ?? 'Falha ao recategorizar em lote');
     },
   });
 
@@ -124,6 +147,12 @@ export function ReadingsPage() {
     if (correctForm.categoryType === 'ONIBUS') return subtypeOptions?.busSubtypes ?? [];
     return [];
   }, [correctForm.categoryType, subtypeOptions]);
+
+  const subtiposForBulk = useMemo(() => {
+    if (bulkCategoryType === 'CAMINHAO') return subtypeOptions?.truckSubtypes ?? [];
+    if (bulkCategoryType === 'ONIBUS') return subtypeOptions?.busSubtypes ?? [];
+    return [];
+  }, [bulkCategoryType, subtypeOptions]);
 
   const exportFile = async (format: 'csv' | 'pdf') => {
     try {
@@ -205,14 +234,80 @@ export function ReadingsPage() {
           <Button className="h-9 text-sm" onClick={() => exportFile('pdf')}>Exportar PDF</Button>
         </div>
       </Card>
+      <Card className="flex flex-wrap gap-2 items-end">
+        <div>
+          <p className="text-xs uppercase text-slate-500">Selecionadas</p>
+          <Input value={String(selectedPlates.length)} readOnly className="w-28" />
+        </div>
+        <div>
+          <p className="text-xs uppercase text-slate-500">Tipo em lote</p>
+          <Select
+            value={bulkCategoryType}
+            onChange={(e) => {
+              setBulkCategoryType(e.target.value);
+              setBulkSubSegment('');
+            }}
+          >
+            <option value="">Selecione</option>
+            <option value="CARRO">Carro</option>
+            <option value="CAMINHAO">Caminhão</option>
+            <option value="ONIBUS">Ônibus</option>
+            <option value="OUTRO">Outro</option>
+          </Select>
+        </div>
+        {subtiposForBulk.length > 0 && (
+          <div>
+            <p className="text-xs uppercase text-slate-500">Subtipo em lote</p>
+            <Select value={bulkSubSegment} onChange={(e) => setBulkSubSegment(e.target.value)}>
+              <option value="">Opcional</option>
+              {subtiposForBulk.map((s) => <option key={s} value={s}>{s}</option>)}
+            </Select>
+          </div>
+        )}
+        <div className="flex gap-2 pt-4">
+          <Button
+            className="h-9 text-sm"
+            disabled={!selectedPlates.length || !bulkCategoryType || bulkCategorizeMutation.isPending}
+            onClick={() => bulkCategorizeMutation.mutate({ plates: selectedPlates, categoryType: bulkCategoryType, subSegment: bulkSubSegment || undefined })}
+          >
+            Aplicar recategorização em lote
+          </Button>
+          <Button className="h-9 text-sm bg-slate-500 hover:bg-slate-400" onClick={() => setSelectedRows({})}>
+            Limpar seleção
+          </Button>
+        </div>
+      </Card>
       <Card>
         {isLoading ? <p>Carregando...</p> : (
           <>
             <Table>
-              <thead><tr><th>Data/hora</th><th>Placa</th><th>Marca/Modelo</th><th>Tipo</th><th>Local</th><th>Câmera</th><th>Confiança</th><th>Duplicada</th><th>Status</th><th></th></tr></thead>
+              <thead><tr><th><input
+                type="checkbox"
+                checked={rows.length > 0 && rows.every((item) => selectedRows[item.id])}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setSelectedRows((current) => {
+                    const next = { ...current };
+                    for (const item of rows) {
+                      next[item.id] = checked;
+                    }
+                    return next;
+                  });
+                }}
+              /></th><th>Data/hora</th><th>Placa</th><th>Marca/Modelo</th><th>Tipo</th><th>Local</th><th>Câmera</th><th>Confiança</th><th>Duplicada</th><th>Status</th><th></th></tr></thead>
               <tbody>
                 {rows.map((item: any) => (
                   <tr key={item.id} className={`border-t border-slate-100${item.vehicle?.isGratuidade ? ' bg-yellow-50' : ''}`}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={!!selectedRows[item.id]}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setSelectedRows((current) => ({ ...current, [item.id]: checked }));
+                        }}
+                      />
+                    </td>
                     <td>{formatDateTime(item.capturedAt)}</td>
                     <td>
                       <div className="flex items-center gap-2">

@@ -96,6 +96,43 @@ export class VehiclesService {
     });
   }
 
+  async categorizeBulk(plates: string[], categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO', subSegment?: string) {
+    const normalizedPlates = Array.from(
+      new Set(
+        plates
+          .map((plate) => plate?.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''))
+          .filter(Boolean),
+      ),
+    );
+
+    if (!normalizedPlates.length) {
+      throw new BadRequestException('Nenhuma placa válida informada');
+    }
+
+    const shouldClearSubSegment = categoryType === 'CARRO' || categoryType === 'OUTRO';
+    const updateData: import('@prisma/client').Prisma.VehicleUpdateManyMutationInput = {
+      categoryType: categoryType as import('@prisma/client').VehicleCategoryType,
+      subSegment: shouldClearSubSegment ? null : (subSegment ?? undefined),
+    };
+
+    const result = await this.prisma.vehicle.updateMany({
+      where: { plate: { in: normalizedPlates } },
+      data: updateData,
+    });
+
+    const foundVehicles = await this.prisma.vehicle.findMany({
+      where: { plate: { in: normalizedPlates } },
+      select: { plate: true },
+    });
+    const foundSet = new Set(foundVehicles.map((vehicle) => vehicle.plate));
+
+    return {
+      updatedCount: result.count,
+      requestedCount: normalizedPlates.length,
+      notFoundPlates: normalizedPlates.filter((plate) => !foundSet.has(plate)),
+    };
+  }
+
   async applyCameraTypeMapping(
     plate: string,
     mapping: { categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS'; subtype?: string | null },
