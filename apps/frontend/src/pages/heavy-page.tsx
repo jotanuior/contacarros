@@ -40,6 +40,7 @@ type HeavyPendingItem = {
 };
 
 type RowForm = {
+  categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS';
   subtype: string;
   notes: string;
 };
@@ -75,8 +76,15 @@ export function HeavyPage() {
     return getSubtypeOptionsByCategory(item.vehicle?.categoryType)[0] || '';
   }
 
+  function getDefaultCategory(item: HeavyPendingItem): 'CARRO' | 'CAMINHAO' | 'ONIBUS' {
+    if (item.vehicle?.categoryType === 'ONIBUS') return 'ONIBUS';
+    if (item.vehicle?.categoryType === 'CAMINHAO') return 'CAMINHAO';
+    return 'CAMINHAO';
+  }
+
   function getRowForm(item: HeavyPendingItem): RowForm {
     return formByReadingId[item.id] || {
+      categoryType: getDefaultCategory(item),
       subtype: getDefaultSubtype(item),
       notes: '',
     };
@@ -95,7 +103,7 @@ export function HeavyPage() {
     });
   }
 
-  const mutation = useMutation({
+  const heavyCheckMutation = useMutation({
     mutationFn: async (payload: any) => api.post('/heavy-checks', payload),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['heavy-pending'] });
@@ -112,6 +120,22 @@ export function HeavyPage() {
     },
   });
 
+  const categorizeMutation = useMutation({
+    mutationFn: async (payload: { plate: string; categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS'; subSegment?: string }) =>
+      api.patch(`/vehicles/${payload.plate}/categorize`, {
+        categoryType: payload.categoryType,
+        subSegment: payload.subSegment || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['heavy-pending'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['readings'] });
+    },
+    onError: (error: any) => {
+      window.alert(error?.response?.data?.message ?? 'Falha ao recategorizar veículo.');
+    },
+  });
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Veículos pesados</h1>
@@ -121,7 +145,7 @@ export function HeavyPage() {
           <tbody>
             {(data || []).map((item) => {
               const rowForm = getRowForm(item);
-              const options = getSubtypeOptionsByCategory(item.vehicle?.categoryType);
+              const options = getSubtypeOptionsByCategory(rowForm.categoryType);
               const effectiveSubtype = options.includes(rowForm.subtype) ? rowForm.subtype : (options[0] || '');
 
               return (
@@ -160,19 +184,60 @@ export function HeavyPage() {
                 </td>
                 <td>{item.vehicle?.model || '-'}</td>
                 <td>{item.location?.name}</td>
-                <td>{item.vehicle?.categoryType}</td>
                 <td>
-                  <Select value={effectiveSubtype} onChange={(e) => updateRowForm(item, { subtype: e.target.value })}>
-                    {options.map((option) => <option key={option} value={option}>{option}</option>)}
+                  <Select
+                    value={rowForm.categoryType}
+                    onChange={(e) => {
+                      const nextType = e.target.value as 'CARRO' | 'CAMINHAO' | 'ONIBUS';
+                      const nextSubtypeOptions = getSubtypeOptionsByCategory(nextType);
+                      updateRowForm(item, {
+                        categoryType: nextType,
+                        subtype: nextType === 'CARRO' ? '' : (nextSubtypeOptions[0] || ''),
+                      });
+                    }}
+                  >
+                    <option value="CARRO">CARRO</option>
+                    <option value="CAMINHAO">CAMINHAO</option>
+                    <option value="ONIBUS">ONIBUS</option>
                   </Select>
+                </td>
+                <td>
+                  {rowForm.categoryType === 'CARRO' ? (
+                    <div className="h-9 flex items-center text-sm text-slate-500">Não se aplica</div>
+                  ) : (
+                    <Select value={effectiveSubtype} onChange={(e) => updateRowForm(item, { subtype: e.target.value })}>
+                      {options.map((option) => <option key={option} value={option}>{option}</option>)}
+                    </Select>
+                  )}
                   <Input value={rowForm.notes} onChange={(e) => updateRowForm(item, { notes: e.target.value })} placeholder="Observação" className="mt-1" />
                 </td>
                 <td>
                   <Button
-                    disabled={!effectiveSubtype || mutation.isPending}
-                    onClick={() => mutation.mutate({ vehicleId: item.vehicleId, readingId: item.id, subtype: effectiveSubtype, notes: rowForm.notes })}
+                    disabled={(rowForm.categoryType !== 'CARRO' && !effectiveSubtype) || heavyCheckMutation.isPending || categorizeMutation.isPending}
+                    onClick={async () => {
+                      if (rowForm.categoryType === 'CARRO') {
+                        await categorizeMutation.mutateAsync({
+                          plate: item.normalizedPlate,
+                          categoryType: 'CARRO',
+                        });
+                        return;
+                      }
+
+                      await categorizeMutation.mutateAsync({
+                        plate: item.normalizedPlate,
+                        categoryType: rowForm.categoryType,
+                        subSegment: effectiveSubtype,
+                      });
+
+                      await heavyCheckMutation.mutateAsync({
+                        vehicleId: item.vehicleId,
+                        readingId: item.id,
+                        subtype: effectiveSubtype,
+                        notes: rowForm.notes,
+                      });
+                    }}
                   >
-                    Checado
+                    {rowForm.categoryType === 'CARRO' ? 'Marcar como carro' : 'Checado'}
                   </Button>
                 </td>
               </tr>
