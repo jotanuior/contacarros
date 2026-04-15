@@ -580,9 +580,13 @@ export function ReadingsPage() {
               </div>
             </div>
             <img
+              key={selectedImage.rowId}
               src={selectedImage.url}
               alt={`Imagem ampliada ${selectedImage.plate}`}
               className="max-h-[80vh] w-full rounded object-contain"
+              onLoad={(event) => {
+                event.currentTarget.dataset.fallbackTried = '0';
+              }}
               onError={(event) => {
                 const image = event.currentTarget;
                 if (image.dataset.fallbackTried === '1') {
