@@ -7,6 +7,7 @@ export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
   private readonly countedStatuses = new Set(['CONCLUIDO_OK', 'CONCLUIDO_ATENCAO', 'SEM_SAIDA']);
+  private readonly dashboardTimezone = process.env.DASHBOARD_TIMEZONE || process.env.APP_TIMEZONE || 'America/Sao_Paulo';
 
   private buildTripWhere(start: Date, end: Date): Prisma.TripWhereInput {
     return {
@@ -42,6 +43,31 @@ export class DashboardService {
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) return null;
     return parsed;
+  }
+
+  private getHourInDashboardTimezone(date: Date): number {
+    const hour = new Intl.DateTimeFormat('pt-BR', {
+      hour: '2-digit',
+      hour12: false,
+      timeZone: this.dashboardTimezone,
+    }).format(date);
+
+    return Number(hour);
+  }
+
+  private formatDateInDashboardTimezone(date: Date): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: this.dashboardTimezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+
+    const year = parts.find((part) => part.type === 'year')?.value ?? '0000';
+    const month = parts.find((part) => part.type === 'month')?.value ?? '01';
+    const day = parts.find((part) => part.type === 'day')?.value ?? '01';
+
+    return `${year}-${month}-${day}`;
   }
 
   async getDaily(params?: { date?: string; from?: string; to?: string }) {
@@ -130,7 +156,7 @@ export class DashboardService {
     }
 
     for (const trip of countedTrips) {
-      const hour = trip.startedAt.getHours();
+      const hour = this.getHourInDashboardTimezone(trip.startedAt);
       tripsByHourMap.set(hour, (tripsByHourMap.get(hour) || 0) + 1);
 
       tripsByLocalMap.set(trip.startLocalId, (tripsByLocalMap.get(trip.startLocalId) || 0) + 1);
@@ -167,7 +193,7 @@ export class DashboardService {
 
     return {
       meta: {
-        lastTripDate: latestTrip?.startedAt ? latestTrip.startedAt.toISOString().slice(0, 10) : null,
+        lastTripDate: latestTrip?.startedAt ? this.formatDateInDashboardTimezone(latestTrip.startedAt) : null,
       },
       cards: {
         totalTrips,
