@@ -268,12 +268,19 @@ export class TripsService {
             },
           });
 
-          const rescueRule = await this.routeRulesService.findRule(latestClosedTrip.startLocalId, input.localId);
+          const enforceRouteRules = await this.settingsService.getBoolean('TRIPS_ENFORCE_ROUTE_RULES', true);
+          const rescueRule = enforceRouteRules
+            ? await this.routeRulesService.findRule(latestClosedTrip.startLocalId, input.localId)
+            : null;
           let rescueStatus: import('@prisma/client').TripStatus = 'INCONSISTENTE';
           let rescueSeverity: 'BAIXA' | 'MEDIA' | 'ALTA' = 'ALTA';
           let rescueConclusion = 'Sem regra cadastrada para rota';
 
-          if (rescueRule?.active) {
+          if (!enforceRouteRules) {
+            rescueStatus = 'CONCLUIDO_OK';
+            rescueSeverity = 'BAIXA';
+            rescueConclusion = 'Fechado sem validação de regra de rota (configuração)';
+          } else if (rescueRule?.active) {
             rescueStatus = rescueRule.resultType;
             rescueSeverity = rescueRule.severity as 'BAIXA' | 'MEDIA' | 'ALTA';
             rescueConclusion = rescueRule.description ?? rescueRule.resultType;
@@ -350,9 +357,12 @@ export class TripsService {
       return trip;
     }
 
-    const rule = await this.routeRulesService.findRule(openTrip.startLocalId, input.localId);
+    const enforceRouteRules = await this.settingsService.getBoolean('TRIPS_ENFORCE_ROUTE_RULES', true);
+    const rule = enforceRouteRules
+      ? await this.routeRulesService.findRule(openTrip.startLocalId, input.localId)
+      : null;
     const isReturnToOrigin = input.localId === openTrip.startLocalId;
-  const returnSameLocalCancelMinutes = await this.settingsService.getNumber('RETURN_SAME_LOCAL_CANCEL_MINUTES', 30);
+    const returnSameLocalCancelMinutes = await this.settingsService.getNumber('RETURN_SAME_LOCAL_CANCEL_MINUTES', 30);
     const elapsedMinutes = Math.max(0, (input.capturedAt.getTime() - openTrip.startedAt.getTime()) / 60000);
     const sequence = (await this.prisma.tripEvent.count({ where: { tripId: openTrip.id } })) + 1;
 
@@ -366,6 +376,23 @@ export class TripsService {
         sequence,
       },
     });
+
+    if (!enforceRouteRules) {
+      const updated = await this.prisma.trip.update({
+        where: { id: openTrip.id },
+        data: {
+          endReadingId: input.readingId,
+          endLocalId: input.localId,
+          endedAt: input.capturedAt,
+          closedAt: input.capturedAt,
+          currentStatus: 'CONCLUIDO_OK',
+          severity: 'BAIXA',
+          conclusionType: 'Fechado sem validação de regra de rota (configuração)',
+        },
+      });
+
+      return updated;
+    }
 
     if (rule && rule.active) {
       let resolvedResultType = rule.resultType;

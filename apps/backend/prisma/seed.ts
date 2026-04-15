@@ -93,6 +93,7 @@ async function main() {
   const settings = [
     { key: 'TRIP_WINDOW_MINUTES', value: '30', description: 'Janela máxima para conclusão de trajeto' },
     { key: 'RETURN_SAME_LOCAL_CANCEL_MINUTES', value: '30', description: 'Minutos para considerar cancelado quando retorna ao mesmo ponto de origem' },
+    { key: 'TRIPS_ENFORCE_ROUTE_RULES', value: 'true', description: 'Quando true, o fechamento do trajeto depende das regras de rota' },
     { key: 'DEDUP_MINUTES', value: '2', description: 'Janela de deduplicação de leitura' },
     { key: 'MIN_CONFIDENCE', value: '0.8', description: 'Confiança mínima para alerta' },
     { key: 'HEAVY_TRIPS_REQUIRE_VALIDATION', value: 'true', description: 'Caminhão/ônibus só contam como viagem após validação' },

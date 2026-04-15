@@ -39,6 +39,7 @@ export function SettingsPage() {
   const [forceRefreshAfterDays, setForceRefreshAfterDays] = useState('0');
   const [heavyTripsRequireValidation, setHeavyTripsRequireValidation] = useState('true');
   const [returnSameLocalCancelMinutes, setReturnSameLocalCancelMinutes] = useState('30');
+  const [tripsEnforceRouteRules, setTripsEnforceRouteRules] = useState('true');
   const [truckSubtypes, setTruckSubtypes] = useState('');
   const [busSubtypes, setBusSubtypes] = useState('');
   const [gratuidadeTypes, setGratuidadeTypes] = useState('');
@@ -68,6 +69,7 @@ export function SettingsPage() {
     setForceRefreshAfterDays(byKey('PLACA_FIPE_FORCE_REFRESH_AFTER_DAYS') || '0');
     setHeavyTripsRequireValidation(byKey('HEAVY_TRIPS_REQUIRE_VALIDATION') || 'true');
     setReturnSameLocalCancelMinutes(byKey('RETURN_SAME_LOCAL_CANCEL_MINUTES') || '30');
+    setTripsEnforceRouteRules(byKey('TRIPS_ENFORCE_ROUTE_RULES') || 'true');
     setTruckSubtypes(byKey('TRUCK_SUBTYPES'));
     setBusSubtypes(byKey('BUS_SUBTYPES'));
     setGratuidadeTypes(byKey('GRATUIDADE_TYPES') || 'PCD,Carro Oficial,NGISUL');
@@ -203,6 +205,19 @@ export function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-daily'] });
+      queryClient.invalidateQueries({ queryKey: ['trips'] });
+    },
+  });
+
+  const tripsRouteRulesMutation = useMutation({
+    mutationFn: async () =>
+      api.post('/settings', {
+        key: 'TRIPS_ENFORCE_ROUTE_RULES',
+        value: tripsEnforceRouteRules,
+        description: 'Quando true, o fechamento do trajeto depende das regras de rota',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['trips'] });
     },
   });
@@ -427,6 +442,25 @@ export function SettingsPage() {
         <div>
           <Button onClick={() => sameLocalCancelWindowMutation.mutate()} disabled={sameLocalCancelWindowMutation.isPending}>
             Salvar janela de cancelamento
+          </Button>
+        </div>
+      </Card>
+
+      <Card className="space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-800">Validação de regra de rota no fechamento de trajetos</h2>
+          <p className="text-sm text-slate-600">Quando true, o sistema usa as regras de rota para definir o status final. Quando false, fecha como CONCLUIDO_OK ao detectar saída.</p>
+        </div>
+        <div className="grid gap-2 md:grid-cols-2">
+          <Input
+            placeholder="true ou false"
+            value={tripsEnforceRouteRules}
+            onChange={(e) => setTripsEnforceRouteRules(e.target.value)}
+          />
+        </div>
+        <div>
+          <Button onClick={() => tripsRouteRulesMutation.mutate()} disabled={tripsRouteRulesMutation.isPending}>
+            Salvar regra de rota para trajetos
           </Button>
         </div>
       </Card>
