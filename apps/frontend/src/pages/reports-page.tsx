@@ -60,6 +60,7 @@ export function ReportsPage() {
   const [cameraId, setCameraId] = useState('');
   const [filterGratuidade, setFilterGratuidade] = useState('');
   const [page, setPage] = useState(1);
+  const [isExporting, setIsExporting] = useState(false);
 
   const { data: locations } = useQuery<Array<{ id: string; name: string }>>({
     queryKey: ['report-locations'],
@@ -103,8 +104,18 @@ export function ReportsPage() {
 
   const isLoading = loadingQuantitative || loadingDescriptive;
   const totalFiltered = mode === 'quantitative' ? (quantitativeData?.total || 0) : (descriptiveData?.total || 0);
+  const modeLabel = mode === 'quantitative' ? 'Quantitativo' : 'Descritivo';
+
+  const getFileNameFromDisposition = (value?: string) => {
+    if (!value) return undefined;
+    const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utf8Match?.[1]) return decodeURIComponent(utf8Match[1]);
+    const simpleMatch = value.match(/filename="?([^";]+)"?/i);
+    return simpleMatch?.[1];
+  };
 
   const exportFile = async (format: 'csv' | 'xls' | 'pdf') => {
+    setIsExporting(true);
     try {
       const response = await api.get('/reports/export', {
         params: { mode, format, ...queryParams, page: undefined, limit: undefined },
@@ -134,8 +145,14 @@ export function ReportsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const dateToken = fromDate.slice(0, 10);
-      a.download = `relatorio-${mode}-${dateToken}.${extensionByFormat[format]}`;
+      const contentDisposition = response.headers?.['content-disposition'];
+      const backendFileName = getFileNameFromDisposition(contentDisposition);
+      if (backendFileName) {
+        a.download = backendFileName;
+      } else {
+        const dateToken = fromDate.slice(0, 10);
+        a.download = `relatorio-${mode}-${dateToken}.${extensionByFormat[format]}`;
+      }
       a.click();
       URL.revokeObjectURL(url);
     } catch (err: any) {
@@ -143,6 +160,8 @@ export function ReportsPage() {
         ? await (err.response.data as Blob).text?.().catch(() => String(err.response.data))
         : err?.message ?? 'Erro desconhecido';
       window.alert(`Erro ao exportar: ${msg}`);
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -218,11 +237,12 @@ export function ReportsPage() {
       </Card>
 
       <Card className="space-y-3">
+        <p className="text-sm">Modo ativo: <strong>{modeLabel}</strong></p>
         <p className="text-sm">Total filtrado: <strong>{totalFiltered}</strong></p>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => exportFile('pdf')}>Exportar PDF</Button>
-          <Button onClick={() => exportFile('csv')}>Exportar CSV</Button>
-          <Button onClick={() => exportFile('xls')}>Exportar XLS</Button>
+          <Button disabled={isExporting} onClick={() => exportFile('pdf')}>Exportar PDF ({modeLabel})</Button>
+          <Button disabled={isExporting} onClick={() => exportFile('csv')}>Exportar CSV ({modeLabel})</Button>
+          <Button disabled={isExporting} onClick={() => exportFile('xls')}>Exportar XLS ({modeLabel})</Button>
         </div>
       </Card>
 
