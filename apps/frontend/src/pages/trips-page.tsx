@@ -54,6 +54,7 @@ export function TripsPage() {
 
   const rows: any[] = data?.data ?? [];
   const totalPages: number = data?.totalPages ?? 1;
+  const summary = data?.summary;
 
   const exportFile = async (format: 'csv' | 'pdf') => {
     try {
@@ -143,6 +144,16 @@ export function TripsPage() {
           <Button className="h-9 text-sm" onClick={() => exportFile('csv')}>Exportar CSV</Button>
           <Button className="h-9 text-sm" onClick={() => exportFile('pdf')}>Exportar PDF</Button>
         </div>
+      </Card>
+      <Card className="flex flex-wrap gap-2">
+        <p className="text-sm font-semibold text-slate-700">Total filtrado: {summary?.totalFiltered ?? 0}</p>
+        <Badge>EM_ANDAMENTO: {summary?.emAndamento ?? 0}</Badge>
+        <Badge>CONCLUIDO_OK: {summary?.concluidoOk ?? 0}</Badge>
+        <Badge>CONCLUIDO_ATENCAO: {summary?.concluidoAtencao ?? 0}</Badge>
+        <Badge>CANCELADO: {summary?.cancelado ?? 0}</Badge>
+        <Badge>SEM_SAIDA: {summary?.semSaida ?? 0}</Badge>
+        <Badge>INCONSISTENTE: {summary?.inconsistente ?? 0}</Badge>
+        <Badge>PENDENTE_VALIDACAO: {summary?.pendenteValidacao ?? 0}</Badge>
       </Card>
       <Card>
         {isLoading ? <p>Carregando...</p> : (

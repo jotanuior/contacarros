@@ -87,6 +87,7 @@ export function ReadingsPage() {
 
   const rows: any[] = data?.data ?? [];
   const totalPages: number = data?.totalPages ?? 1;
+  const summary = data?.summary;
   const previewImages = useMemo(
     () => rows.map((item) => ({
       rowId: item.id,
@@ -292,6 +293,16 @@ export function ReadingsPage() {
           <Button className="h-9 text-sm" onClick={() => exportFile('csv')}>Exportar CSV</Button>
           <Button className="h-9 text-sm" onClick={() => exportFile('pdf')}>Exportar PDF</Button>
         </div>
+      </Card>
+      <Card className="flex flex-wrap gap-2">
+        <p className="text-sm font-semibold text-slate-700">Total filtrado: {summary?.totalFiltered ?? 0}</p>
+        <Badge className="bg-slate-100 text-slate-700">Carros: {summary?.cars ?? 0}</Badge>
+        <Badge className="bg-slate-100 text-slate-700">Caminhões: {summary?.trucks ?? 0}</Badge>
+        <Badge className="bg-slate-100 text-slate-700">Ônibus: {summary?.buses ?? 0}</Badge>
+        <Badge className="bg-slate-100 text-slate-700">Outros: {summary?.outros ?? 0}</Badge>
+        <Badge className="bg-slate-100 text-slate-700">Desconhecidos: {summary?.desconhecidos ?? 0}</Badge>
+        <Badge className="bg-amber-100 text-amber-700">Duplicadas: {summary?.duplicadas ?? 0}</Badge>
+        <Badge className="bg-rose-100 text-rose-700">Baixa confiança: {summary?.baixaConfianca ?? 0}</Badge>
       </Card>
       <Card className="flex flex-wrap gap-2 items-end">
         <div>

@@ -511,7 +511,14 @@ export class ReadingsService {
     const page = pagination.page ?? 1;
     const limit = pagination.limit ?? 20;
     const where = this.buildReadingWhere(filters, from, to);
-    const [data, total] = await Promise.all([
+    const withVehicleCategory = (categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS' | 'OUTRO' | 'DESCONHECIDO'): Prisma.ReadingWhereInput => ({
+      AND: [
+        where,
+        { vehicle: { categoryType } },
+      ],
+    });
+
+    const [data, total, cars, trucks, buses, outros, desconhecidos, duplicadas, baixaConfianca] = await Promise.all([
       this.prisma.reading.findMany({
         where,
         include: { vehicle: true, location: true, camera: true },
@@ -520,8 +527,40 @@ export class ReadingsService {
         take: limit,
       }),
       this.prisma.reading.count({ where }),
+      this.prisma.reading.count({ where: withVehicleCategory('CARRO') }),
+      this.prisma.reading.count({ where: withVehicleCategory('CAMINHAO') }),
+      this.prisma.reading.count({ where: withVehicleCategory('ONIBUS') }),
+      this.prisma.reading.count({ where: withVehicleCategory('OUTRO') }),
+      this.prisma.reading.count({ where: withVehicleCategory('DESCONHECIDO') }),
+      this.prisma.reading.count({ where: { AND: [where, { isDuplicate: true }] } }),
+      this.prisma.reading.count({ where: { AND: [where, { confidence: { lt: 0.8 } }] } }),
     ]);
-    return PaginatedResponse.of(data, total, page, limit);
+
+    const response = PaginatedResponse.of(data, total, page, limit) as PaginatedResponse<any> & {
+      summary: {
+        totalFiltered: number;
+        cars: number;
+        trucks: number;
+        buses: number;
+        outros: number;
+        desconhecidos: number;
+        duplicadas: number;
+        baixaConfianca: number;
+      };
+    };
+
+    response.summary = {
+      totalFiltered: total,
+      cars,
+      trucks,
+      buses,
+      outros,
+      desconhecidos,
+      duplicadas,
+      baixaConfianca,
+    };
+
+    return response;
   }
 
   private buildReadingWhere(

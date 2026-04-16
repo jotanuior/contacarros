@@ -33,7 +33,7 @@ export class TripsService {
       startedAt: filters.from || filters.to ? { gte: filters.from, lte: filters.to } : undefined,
       vehicle: Object.keys(vehicleFilter).length > 0 ? vehicleFilter : undefined,
     };
-    const [data, total] = await Promise.all([
+    const [data, total, statusGroups] = await Promise.all([
       this.prisma.trip.findMany({
         where,
         include: {
@@ -50,8 +50,39 @@ export class TripsService {
         take: limit,
       }),
       this.prisma.trip.count({ where }),
+      this.prisma.trip.groupBy({
+        by: ['currentStatus'],
+        where,
+        _count: { _all: true },
+      }),
     ]);
-    return PaginatedResponse.of(data, total, page, limit);
+
+    const statusCountMap = new Map(statusGroups.map((group) => [group.currentStatus, group._count._all]));
+    const response = PaginatedResponse.of(data, total, page, limit) as PaginatedResponse<any> & {
+      summary: {
+        totalFiltered: number;
+        emAndamento: number;
+        concluidoOk: number;
+        concluidoAtencao: number;
+        cancelado: number;
+        semSaida: number;
+        inconsistente: number;
+        pendenteValidacao: number;
+      };
+    };
+
+    response.summary = {
+      totalFiltered: total,
+      emAndamento: statusCountMap.get('EM_ANDAMENTO') || 0,
+      concluidoOk: statusCountMap.get('CONCLUIDO_OK') || 0,
+      concluidoAtencao: statusCountMap.get('CONCLUIDO_ATENCAO') || 0,
+      cancelado: statusCountMap.get('CANCELADO') || 0,
+      semSaida: statusCountMap.get('SEM_SAIDA') || 0,
+      inconsistente: statusCountMap.get('INCONSISTENTE') || 0,
+      pendenteValidacao: statusCountMap.get('PENDENTE_VALIDACAO') || 0,
+    };
+
+    return response;
   }
 
   async exportTripsCsv(filters: { plate?: string; status?: string; from?: Date; to?: Date; categoryType?: string; subSegment?: string; isGratuidade?: boolean }) {
