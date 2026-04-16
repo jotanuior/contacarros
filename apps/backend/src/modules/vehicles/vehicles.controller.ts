@@ -2,13 +2,14 @@ import { BadRequestException, Body, Controller, Get, NotFoundException, Param, P
 import { VehiclesService } from './vehicles.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
-import { Roles } from '../../common/roles.decorator';
+import { Permission } from '../../common/permissions.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
+import type { JwtUser } from '../../common/current-user.decorator';
 import { PaginationDto } from '../../common/pagination.dto';
 
 @Controller('vehicles')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'OPERADOR', 'AUDITOR', 'VISUALIZADOR')
+@Permission('VEICULOS', 'view')
 export class VehiclesController {
   constructor(private readonly vehiclesService: VehiclesService) {}
 
@@ -29,7 +30,7 @@ export class VehiclesController {
   }
 
   @Patch('categorize/bulk')
-  @Roles('ADMIN', 'OPERADOR')
+  @Permission('VEICULOS', 'edit')
   async categorizeBulk(
     @Body() body: { plates: string[]; categoryType: string; subSegment?: string },
   ) {
@@ -50,7 +51,7 @@ export class VehiclesController {
   }
 
   @Patch(':plate/categorize')
-  @Roles('ADMIN', 'OPERADOR')
+  @Permission('VEICULOS', 'edit')
   async categorize(
     @Param('plate') plate: string,
     @Body() body: { categoryType: string; subSegment?: string },
@@ -67,17 +68,17 @@ export class VehiclesController {
   }
 
   @Patch(':plate/correct')
-  @Roles('ADMIN', 'OPERADOR')
+  @Permission('VEICULOS', 'edit')
   async correct(
     @Param('plate') plate: string,
     @Body() body: { newPlate?: string; categoryType?: string; subSegment?: string; justification: string },
-    @CurrentUser() user: { id: string },
+    @CurrentUser() user: JwtUser,
   ) {
-    return this.vehiclesService.correct(plate, user?.id, body);
+    return this.vehiclesService.correct(plate, user?.sub, body);
   }
 
   @Patch(':plate/gratuidade')
-  @Roles('ADMIN', 'OPERADOR')
+  @Permission('VEICULOS', 'edit')
   async setGratuidade(
     @Param('plate') plate: string,
     @Body() body: { isGratuidade: boolean; gratuidadeType?: string | null },

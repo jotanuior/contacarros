@@ -13,7 +13,12 @@ export class UsersService {
   ) {}
 
   async create(dto: CreateUserDto, actorId?: string) {
-    const role = await this.prisma.role.findFirst({ where: { name: dto.role as any } });
+    const role = await this.prisma.role.findFirst({
+      where: {
+        name: { equals: dto.role, mode: 'insensitive' },
+        isActive: true,
+      },
+    });
     if (!role) throw new BadRequestException('Perfil inválido');
 
     const exists = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
@@ -65,7 +70,12 @@ export class UsersService {
 
     let roleId = existing.roleId;
     if (dto.role) {
-      const role = await this.prisma.role.findFirst({ where: { name: dto.role as any } });
+      const role = await this.prisma.role.findFirst({
+        where: {
+          name: { equals: dto.role, mode: 'insensitive' },
+          isActive: true,
+        },
+      });
       if (!role) throw new BadRequestException('Perfil inválido');
       roleId = role.id;
     }
@@ -114,7 +124,7 @@ export class UsersService {
   async deactivate(id: string, actorId?: string) {
     const existing = await this.prisma.user.findUnique({ where: { id }, include: { role: true } });
     if (!existing) throw new NotFoundException('Usuário não encontrado');
-    if (existing.role.name === 'ADMIN') {
+    if (existing.role.isSystem || existing.role.name.toUpperCase() === 'ADMIN') {
       throw new BadRequestException('Não é permitido desativar usuário ADMIN');
     }
 

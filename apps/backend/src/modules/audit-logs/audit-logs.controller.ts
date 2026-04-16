@@ -2,12 +2,12 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AuditLogsService } from './audit-logs.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
-import { Roles } from '../../common/roles.decorator';
+import { Permission } from '../../common/permissions.decorator';
 import { PaginationDto } from '../../common/pagination.dto';
 
 @Controller('audit-logs')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'AUDITOR')
+@Permission('AUDITORIA', 'view')
 export class AuditLogsController {
   constructor(private readonly auditLogsService: AuditLogsService) {}
 

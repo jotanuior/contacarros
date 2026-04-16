@@ -2,14 +2,14 @@ import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/c
 import { AlertsService } from './alerts.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
-import { Roles } from '../../common/roles.decorator';
+import { Permission } from '../../common/permissions.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 import type { JwtUser } from '../../common/current-user.decorator';
 import { PaginationDto } from '../../common/pagination.dto';
 
 @Controller('alerts')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'OPERADOR', 'AUDITOR', 'VISUALIZADOR')
+@Permission('ALERTAS', 'view')
 export class AlertsController {
   constructor(private readonly alertsService: AlertsService) {}
 
@@ -33,12 +33,13 @@ export class AlertsController {
   }
 
   @Patch(':id/resolve')
+  @Permission('ALERTAS', 'edit')
   resolve(@Param('id') id: string, @CurrentUser() user: JwtUser) {
     return this.alertsService.resolve(id, user.sub);
   }
 
   @Patch(':id/decision')
-  @Roles('ADMIN', 'OPERADOR', 'AUDITOR')
+  @Permission('ALERTAS', 'edit')
   decide(
     @Param('id') id: string,
     @Body() body: { decision: 'ACEITAR' | 'NEGAR'; justification: string },
@@ -48,7 +49,7 @@ export class AlertsController {
   }
 
   @Patch(':id/reclassify-vehicle')
-  @Roles('ADMIN', 'OPERADOR', 'AUDITOR')
+  @Permission('ALERTAS', 'edit')
   reclassifyVehicle(
     @Param('id') id: string,
     @Body() body: { categoryType: 'CARRO' | 'CAMINHAO' | 'ONIBUS' },

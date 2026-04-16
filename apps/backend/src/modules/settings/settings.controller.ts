@@ -3,41 +3,40 @@ import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
 import { IpWhitelistGuard } from '../../common/ip-whitelist.guard';
-import { Roles } from '../../common/roles.decorator';
+import { Permission } from '../../common/permissions.decorator';
 
 @Controller('settings')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Permission('CONFIGURACOES', 'view')
 export class SettingsController {
   constructor(private readonly settingsService: SettingsService) {}
 
   @Get()
-  @Roles('ADMIN', 'AUDITOR')
   getAll() {
     return this.settingsService.getAll();
   }
 
   @Get('camera-vehicle-types')
-  @Roles('ADMIN', 'AUDITOR')
   listCameraVehicleTypes() {
     return this.settingsService.listCameraVehicleTypes();
   }
 
   @Get('gratuidade-types')
-  @Roles('ADMIN', 'OPERADOR', 'AUDITOR', 'VISUALIZADOR')
+  @Permission('VEICULOS', 'view')
   async getGratuidadeTypes() {
     const raw = await this.settingsService.getValue('GRATUIDADE_TYPES', 'PCD,Carro Oficial,NGISUL');
     return { gratuidadeTypes: raw.split(',').map((s) => s.trim()).filter(Boolean) };
   }
 
   @Post()
-  @Roles('ADMIN')
+  @Permission('CONFIGURACOES', 'edit')
   @UseGuards(IpWhitelistGuard)
   set(@Body() body: { key: string; value: string; description?: string }) {
     return this.settingsService.set(body.key, body.value, body.description);
   }
 
   @Patch('camera-vehicle-types/:id')
-  @Roles('ADMIN')
+  @Permission('CONFIGURACOES', 'edit')
   @UseGuards(IpWhitelistGuard)
   updateCameraVehicleTypeMapping(
     @Param('id') id: string,

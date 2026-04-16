@@ -5,8 +5,10 @@ import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 
 export function LocationsPage() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const { canAccess } = useAuth();
+  const canCreate = canAccess('LOCAIS', 'create');
+  const canEdit = canAccess('LOCAIS', 'edit');
+  const canDeactivate = canAccess('LOCAIS', 'deactivate');
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -49,7 +51,7 @@ export function LocationsPage() {
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Locais</h1>
 
-      {isAdmin && (
+      {(canCreate || canEdit) && (
         <Card className="flex flex-wrap gap-2">
           <Input placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} />
           <Input placeholder="Código" value={code} onChange={(e) => setCode(e.target.value)} />
@@ -57,7 +59,7 @@ export function LocationsPage() {
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
             Ativo
           </label>
-          <Button onClick={() => saveMutation.mutate()}>{editingId ? 'Salvar' : 'Criar'}</Button>
+          <Button disabled={editingId ? !canEdit : !canCreate} onClick={() => saveMutation.mutate()}>{editingId ? 'Salvar' : 'Criar'}</Button>
           {editingId && (
             <Button
               className="bg-slate-500 hover:bg-slate-600"
@@ -81,7 +83,7 @@ export function LocationsPage() {
               <th>Nome</th>
               <th>Código</th>
               <th>Ativo</th>
-              {isAdmin && <th>Ações</th>}
+              {(canEdit || canDeactivate) && <th>Ações</th>}
             </tr>
           </thead>
           <tbody>
@@ -90,29 +92,33 @@ export function LocationsPage() {
                 <td>{l.name}</td>
                 <td>{l.code}</td>
                 <td>{l.active ? 'Sim' : 'Não'}</td>
-                {isAdmin && (
+                {(canEdit || canDeactivate) && (
                   <td className="flex gap-2 py-2">
-                    <Button
-                      className="h-8 bg-slate-700 px-2 text-xs hover:bg-slate-600"
-                      onClick={() => {
-                        setEditingId(l.id);
-                        setName(l.name ?? '');
-                        setCode(l.code ?? '');
-                        setActive(Boolean(l.active));
-                      }}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      className="h-8 bg-slate-500 px-2 text-xs hover:bg-slate-600"
-                      onClick={() => {
-                        if (window.confirm('Deseja desativar este local?')) {
-                          deleteMutation.mutate(l.id);
-                        }
-                      }}
-                    >
-                      Excluir
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        className="h-8 bg-slate-700 px-2 text-xs hover:bg-slate-600"
+                        onClick={() => {
+                          setEditingId(l.id);
+                          setName(l.name ?? '');
+                          setCode(l.code ?? '');
+                          setActive(Boolean(l.active));
+                        }}
+                      >
+                        Editar
+                      </Button>
+                    )}
+                    {canDeactivate && (
+                      <Button
+                        className="h-8 bg-slate-500 px-2 text-xs hover:bg-slate-600"
+                        onClick={() => {
+                          if (window.confirm('Deseja desativar este local?')) {
+                            deleteMutation.mutate(l.id);
+                          }
+                        }}
+                      >
+                        Excluir
+                      </Button>
+                    )}
                   </td>
                 )}
               </tr>

@@ -2,18 +2,18 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } f
 import { CamerasService } from './cameras.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
-import { Roles } from '../../common/roles.decorator';
+import { Permission } from '../../common/permissions.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 import type { JwtUser } from '../../common/current-user.decorator';
 import { PaginationDto } from '../../common/pagination.dto';
 
 @Controller('cameras')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Permission('CAMERAS', 'view')
 export class CamerasController {
   constructor(private readonly camerasService: CamerasService) {}
 
   @Get()
-  @Roles('ADMIN', 'OPERADOR', 'AUDITOR', 'VISUALIZADOR')
   findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
     const pagination: PaginationDto = {
       page: page ? Number(page) : 1,
@@ -24,7 +24,7 @@ export class CamerasController {
   }
 
   @Post()
-  @Roles('ADMIN')
+  @Permission('CAMERAS', 'create')
   create(
     @Body()
     body: {
@@ -41,7 +41,7 @@ export class CamerasController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN')
+  @Permission('CAMERAS', 'edit')
   update(
     @Param('id') id: string,
     @Body()
@@ -59,7 +59,7 @@ export class CamerasController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN')
+  @Permission('CAMERAS', 'deactivate')
   remove(@Param('id') id: string, @CurrentUser() user: JwtUser) {
     return this.camerasService.remove(id, user.sub);
   }

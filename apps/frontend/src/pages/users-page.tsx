@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { Button, Card, Input, Pagination, Select, Table } from '../components/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 
 export function UsersPage() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const { canAccess } = useAuth();
+  const canCreate = canAccess('USUARIOS', 'create');
+  const canEdit = canAccess('USUARIOS', 'edit');
+  const canDeactivate = canAccess('USUARIOS', 'deactivate');
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -19,6 +21,10 @@ export function UsersPage() {
   const { data } = useQuery({
     queryKey: ['users', page],
     queryFn: async () => (await api.get('/users', { params: { page, limit: 20 } })).data,
+  });
+  const { data: rolesData } = useQuery({
+    queryKey: ['roles', 'active-select'],
+    queryFn: async () => (await api.get('/roles/assignable')).data,
   });
 
   const saveMutation = useMutation({
@@ -52,12 +58,21 @@ export function UsersPage() {
 
   const rows: any[] = data?.data ?? [];
   const totalPages: number = data?.totalPages ?? 1;
+  const availableRoles: any[] = rolesData ?? [];
+
+  useEffect(() => {
+    if (!availableRoles.length) return;
+    const currentStillExists = availableRoles.some((item) => item.name === role);
+    if (!currentStillExists) {
+      setRole(availableRoles[0].name);
+    }
+  }, [availableRoles, role]);
 
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Usuários</h1>
 
-      {isAdmin && (
+      {(canCreate || canEdit) && (
         <Card className="grid gap-2 md:grid-cols-6">
           <Input placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} />
           <Input placeholder="Email" value={email} disabled={Boolean(editingId)} onChange={(e) => setEmail(e.target.value)} />
@@ -70,12 +85,11 @@ export function UsersPage() {
             </Select>
           )}
           <Select value={role} onChange={(e) => setRole(e.target.value)}>
-            <option>ADMIN</option>
-            <option>OPERADOR</option>
-            <option>AUDITOR</option>
-            <option>VISUALIZADOR</option>
+            {availableRoles.map((item) => (
+              <option key={item.id} value={item.name}>{item.name}</option>
+            ))}
           </Select>
-          <Button onClick={() => saveMutation.mutate()}>{editingId ? 'Salvar' : 'Criar'}</Button>
+          <Button disabled={editingId ? !canEdit : !canCreate} onClick={() => saveMutation.mutate()}>{editingId ? 'Salvar' : 'Criar'}</Button>
           {editingId && (
             <Button
               className="bg-slate-500 hover:bg-slate-600"
@@ -102,7 +116,7 @@ export function UsersPage() {
               <th>Email</th>
               <th>Perfil</th>
               <th>Ativo</th>
-              {isAdmin && <th>Ações</th>}
+              {(canEdit || canDeactivate) && <th>Ações</th>}
             </tr>
           </thead>
           <tbody>
@@ -112,32 +126,36 @@ export function UsersPage() {
                 <td>{u.email}</td>
                 <td>{u.role?.name}</td>
                 <td>{u.isActive ? 'Sim' : 'Não'}</td>
-                {isAdmin && (
+                {(canEdit || canDeactivate) && (
                   <td className="flex gap-2 py-2">
-                    <Button
-                      className="h-8 bg-slate-700 px-2 text-xs hover:bg-slate-600"
-                      onClick={() => {
-                        setEditingId(u.id);
-                        setName(u.name ?? '');
-                        setEmail(u.email ?? '');
-                        setRole(u.role?.name ?? 'OPERADOR');
-                        setIsActive(Boolean(u.isActive));
-                      }}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      className="h-8 bg-slate-700 px-2 text-xs hover:bg-slate-600"
-                      onClick={() => {
-                        const newPassword = window.prompt('Nova senha (mín. 6 caracteres):');
-                        if (newPassword && newPassword.length >= 6) {
-                          changePasswordMutation.mutate({ id: u.id, newPassword });
-                        }
-                      }}
-                    >
-                      Trocar senha
-                    </Button>
-                    {u.isActive && u.role?.name !== 'ADMIN' && (
+                    {canEdit && (
+                      <>
+                        <Button
+                          className="h-8 bg-slate-700 px-2 text-xs hover:bg-slate-600"
+                          onClick={() => {
+                            setEditingId(u.id);
+                            setName(u.name ?? '');
+                            setEmail(u.email ?? '');
+                            setRole(u.role?.name ?? 'OPERADOR');
+                            setIsActive(Boolean(u.isActive));
+                          }}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          className="h-8 bg-slate-700 px-2 text-xs hover:bg-slate-600"
+                          onClick={() => {
+                            const newPassword = window.prompt('Nova senha (mín. 6 caracteres):');
+                            if (newPassword && newPassword.length >= 6) {
+                              changePasswordMutation.mutate({ id: u.id, newPassword });
+                            }
+                          }}
+                        >
+                          Trocar senha
+                        </Button>
+                      </>
+                    )}
+                    {canDeactivate && u.isActive && u.role?.isSystem !== true && (
                       <Button
                         className="h-8 bg-slate-500 px-2 text-xs hover:bg-slate-600"
                         onClick={() => {

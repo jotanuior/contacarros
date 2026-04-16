@@ -2,13 +2,13 @@ import { BadRequestException, Controller, Get, Query, Res, UseGuards } from '@ne
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
-import { Roles } from '../../common/roles.decorator';
+import { Permission } from '../../common/permissions.decorator';
 import type { Response } from 'express';
 import { PaginationDto } from '../../common/pagination.dto';
 
 @Controller('reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'AUDITOR')
+@Permission('RELATORIOS', 'view')
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
@@ -18,6 +18,7 @@ export class ReportsController {
   }
 
   @Get('csv')
+  @Permission('RELATORIOS', 'export')
   getCsv(@Query('from') from?: string, @Query('to') to?: string) {
     return this.reportsService.getCsv(from, to);
   }
@@ -57,6 +58,7 @@ export class ReportsController {
   }
 
   @Get('export')
+  @Permission('RELATORIOS', 'export')
   async exportReport(
     @Query('mode') mode: string = 'quantitative',
     @Query('format') format: string = 'csv',

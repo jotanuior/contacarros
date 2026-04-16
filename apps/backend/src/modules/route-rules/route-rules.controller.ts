@@ -2,21 +2,21 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@n
 import { RouteRulesService } from './route-rules.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
-import { Roles } from '../../common/roles.decorator';
+import { Permission } from '../../common/permissions.decorator';
 
 @Controller('route-rules')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Permission('REGRAS_ROTA', 'view')
 export class RouteRulesController {
   constructor(private readonly routeRulesService: RouteRulesService) {}
 
   @Get()
-  @Roles('ADMIN', 'OPERADOR', 'AUDITOR', 'VISUALIZADOR')
   list() {
     return this.routeRulesService.list();
   }
 
   @Post()
-  @Roles('ADMIN')
+  @Permission('REGRAS_ROTA', 'create')
   create(
     @Body()
     body: {
@@ -32,7 +32,7 @@ export class RouteRulesController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN')
+  @Permission('REGRAS_ROTA', 'edit')
   update(
     @Param('id') id: string,
     @Body()
@@ -49,7 +49,7 @@ export class RouteRulesController {
   }
 
   @Delete(':id')
-  @Roles('ADMIN')
+  @Permission('REGRAS_ROTA', 'deactivate')
   remove(@Param('id') id: string) {
     return this.routeRulesService.remove(id);
   }

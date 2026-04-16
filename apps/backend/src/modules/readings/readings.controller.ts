@@ -16,7 +16,7 @@ import { ReadingsService } from './readings.service';
 import { ImportIntelbrasCsvDto, LprReadingBatchDto, LprReadingDto } from './dto';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
-import { Roles } from '../../common/roles.decorator';
+import { Permission } from '../../common/permissions.decorator';
 import { PaginationDto } from '../../common/pagination.dto';
 
 @Controller('lpr/readings')
@@ -35,7 +35,7 @@ export class ReadingsController {
 
   @Post('import/intelbras-csv')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'OPERADOR')
+  @Permission('LEITURAS', 'create')
   @UseInterceptors(FileInterceptor('file'))
   importIntelbrasCsv(
     @UploadedFile() file: { buffer?: Buffer } | undefined,
@@ -55,7 +55,7 @@ export class ReadingsController {
 
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'OPERADOR', 'AUDITOR', 'VISUALIZADOR')
+  @Permission('LEITURAS', 'view')
   list(
     @Query('plate') plate?: string,
     @Query('localId') localId?: string,
@@ -92,7 +92,7 @@ export class ReadingsController {
 
   @Get('export')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'OPERADOR', 'AUDITOR')
+  @Permission('LEITURAS', 'export')
   async exportReadings(
     @Query('format') format: string = 'csv',
     @Query('plate') plate?: string,

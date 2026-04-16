@@ -1,20 +1,143 @@
-import { PrismaClient, RoleName, SeverityLevel, TripStatus, VehicleCategoryType } from '@prisma/client';
+import { PermissionScreen, PrismaClient, SeverityLevel, TripStatus, VehicleCategoryType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const roles: RoleName[] = [RoleName.ADMIN, RoleName.OPERADOR, RoleName.AUDITOR, RoleName.VISUALIZADOR];
+  const allScreens = Object.values(PermissionScreen);
+  const operadorViewScreens = new Set<PermissionScreen>([
+    PermissionScreen.DASHBOARD,
+    PermissionScreen.LEITURAS,
+    PermissionScreen.TRAJETOS,
+    PermissionScreen.ALERTAS,
+    PermissionScreen.PESADOS,
+    PermissionScreen.LOCAIS,
+    PermissionScreen.CAMERAS,
+    PermissionScreen.REGRAS_ROTA,
+    PermissionScreen.VEICULOS,
+    PermissionScreen.SIMULADOR_WEBHOOK,
+  ]);
+  const operadorCreateScreens = new Set<PermissionScreen>([PermissionScreen.LEITURAS]);
+  const operadorEditScreens = new Set<PermissionScreen>([
+    PermissionScreen.ALERTAS,
+    PermissionScreen.PESADOS,
+    PermissionScreen.VEICULOS,
+    PermissionScreen.SIMULADOR_WEBHOOK,
+  ]);
+  const operadorExportScreens = new Set<PermissionScreen>([
+    PermissionScreen.LEITURAS,
+    PermissionScreen.TRAJETOS,
+  ]);
+  const auditorViewScreens = new Set<PermissionScreen>([
+    PermissionScreen.DASHBOARD,
+    PermissionScreen.LEITURAS,
+    PermissionScreen.TRAJETOS,
+    PermissionScreen.ALERTAS,
+    PermissionScreen.PESADOS,
+    PermissionScreen.LOCAIS,
+    PermissionScreen.CAMERAS,
+    PermissionScreen.REGRAS_ROTA,
+    PermissionScreen.USUARIOS,
+    PermissionScreen.AUDITORIA,
+    PermissionScreen.RELATORIOS,
+    PermissionScreen.VEICULOS,
+    PermissionScreen.CONFIGURACOES,
+  ]);
+  const auditorEditScreens = new Set<PermissionScreen>([
+    PermissionScreen.ALERTAS,
+    PermissionScreen.PESADOS,
+  ]);
+  const auditorExportScreens = new Set<PermissionScreen>([
+    PermissionScreen.LEITURAS,
+    PermissionScreen.TRAJETOS,
+    PermissionScreen.RELATORIOS,
+  ]);
+  const fullPermissionSet = allScreens.map((screen) => ({
+    screen,
+    canView: true,
+    canCreate: true,
+    canEdit: true,
+    canDeactivate: true,
+    canExport: true,
+  }));
 
-  for (const roleName of roles) {
-    await prisma.role.upsert({
-      where: { name: roleName },
-      update: {},
-      create: { name: roleName },
+  const readOnlyScreens = new Set<PermissionScreen>([
+    PermissionScreen.DASHBOARD,
+    PermissionScreen.LEITURAS,
+    PermissionScreen.TRAJETOS,
+    PermissionScreen.ALERTAS,
+    PermissionScreen.LOCAIS,
+    PermissionScreen.CAMERAS,
+    PermissionScreen.REGRAS_ROTA,
+    PermissionScreen.VEICULOS,
+  ]);
+
+  const roles = [
+    {
+      name: 'ADMIN',
+      isSystem: true,
+      permissions: fullPermissionSet,
+    },
+    {
+      name: 'OPERADOR',
+      isSystem: true,
+      permissions: allScreens.map((screen) => ({
+        screen,
+        canView: operadorViewScreens.has(screen),
+        canCreate: operadorCreateScreens.has(screen),
+        canEdit: operadorEditScreens.has(screen),
+        canDeactivate: false,
+        canExport: operadorExportScreens.has(screen),
+      })),
+    },
+    {
+      name: 'AUDITOR',
+      isSystem: true,
+      permissions: allScreens.map((screen) => ({
+        screen,
+        canView: auditorViewScreens.has(screen),
+        canCreate: false,
+        canEdit: auditorEditScreens.has(screen),
+        canDeactivate: false,
+        canExport: auditorExportScreens.has(screen),
+      })),
+    },
+    {
+      name: 'VISUALIZADOR',
+      isSystem: true,
+      permissions: allScreens.map((screen) => ({
+        screen,
+        canView: readOnlyScreens.has(screen),
+        canCreate: false,
+        canEdit: false,
+        canDeactivate: false,
+        canExport: false,
+      })),
+    },
+  ];
+
+  for (const roleDef of roles) {
+    const role = await prisma.role.upsert({
+      where: { name: roleDef.name },
+      update: { isActive: true, isSystem: roleDef.isSystem },
+      create: { name: roleDef.name, isActive: true, isSystem: roleDef.isSystem },
+    });
+
+    await prisma.rolePermission.deleteMany({ where: { roleId: role.id } });
+    await prisma.rolePermission.createMany({
+      data: roleDef.permissions.map((permission) => ({
+        roleId: role.id,
+        screen: permission.screen,
+        canView: permission.canView,
+        canCreate: permission.canCreate,
+        canEdit: permission.canEdit,
+        canDeactivate: permission.canDeactivate,
+        canExport: permission.canExport,
+      })),
     });
   }
 
-  const adminRole = await prisma.role.findUniqueOrThrow({ where: { name: RoleName.ADMIN } });
+  const adminRole = await prisma.role.findUniqueOrThrow({ where: { name: 'ADMIN' } });
 
   const passwordHash = await bcrypt.hash('Admin@123', 10);
   await prisma.user.upsert({

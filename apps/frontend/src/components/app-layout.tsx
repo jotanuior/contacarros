@@ -1,28 +1,16 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from './ui';
-
-const menu = [
-  { to: '/dashboard', label: 'Dashboard' },
-  { to: '/leituras', label: 'Leituras' },
-  { to: '/trajetos', label: 'Trajetos' },
-  { to: '/alertas', label: 'Alertas' },
-  { to: '/pesados', label: 'Pesados' },
-  { to: '/locais', label: 'Locais' },
-  { to: '/cameras', label: 'Câmeras' },
-  { to: '/regras-rota', label: 'Regras de rota' },
-  { to: '/usuarios', label: 'Usuários' },
-  { to: '/auditoria', label: 'Auditoria' },
-  { to: '/relatorios', label: 'Relatórios' },
-  { to: '/veiculos', label: 'Veículos' },
-  { to: '/configuracoes', label: 'Configurações' },
-  { to: '/simulador-webhook', label: 'Simulador Webhook' },
-];
+import { APP_ROUTES } from '../lib/rbac';
 
 export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, canAccess } = useAuth();
+  const menu = APP_ROUTES.filter((item) => canAccess(item.screen, 'view')).map((item) => ({
+    to: item.path,
+    label: item.label,
+  }));
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">

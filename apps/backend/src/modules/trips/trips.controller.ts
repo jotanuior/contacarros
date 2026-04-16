@@ -3,12 +3,12 @@ import type { Response } from 'express';
 import { TripsService } from './trips.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
-import { Roles } from '../../common/roles.decorator';
+import { Permission } from '../../common/permissions.decorator';
 import { PaginationDto } from '../../common/pagination.dto';
 
 @Controller('trips')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'OPERADOR', 'AUDITOR', 'VISUALIZADOR')
+@Permission('TRAJETOS', 'view')
 export class TripsController {
   constructor(private readonly tripsService: TripsService) {}
 
@@ -44,7 +44,7 @@ export class TripsController {
   }
 
   @Get('export')
-  @Roles('ADMIN', 'OPERADOR', 'AUDITOR')
+  @Permission('TRAJETOS', 'export')
   async exportTrips(
     @Query('format') format: string = 'csv',
     @Query('plate') plate?: string,

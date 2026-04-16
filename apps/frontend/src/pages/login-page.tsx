@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../hooks/useAuth';
 import { Button, Card, Input } from '../components/ui';
 import { useNavigate } from 'react-router-dom';
+import { getFirstAllowedRoute } from '../lib/rbac';
 
 const schema = z.object({
   email: z.email('Informe e-mail válido'),
@@ -25,8 +26,8 @@ export function LoginPage() {
 
   const onSubmit = async (data: FormValues) => {
     try {
-      await login(data.email, data.password);
-      navigate('/dashboard');
+      const authenticatedUser = await login(data.email, data.password);
+      navigate(getFirstAllowedRoute(authenticatedUser), { replace: true });
     } catch {
       setError('root', { message: 'Falha no login' });
     }

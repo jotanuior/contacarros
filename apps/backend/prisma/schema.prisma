@@ -7,11 +7,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum RoleName {
-  ADMIN
-  OPERADOR
-  AUDITOR
-  VISUALIZADOR
+enum PermissionScreen {
+  DASHBOARD
+  LEITURAS
+  TRAJETOS
+  ALERTAS
+  PESADOS
+  LOCAIS
+  CAMERAS
+  REGRAS_ROTA
+  USUARIOS
+  PERFIS
+  AUDITORIA
+  RELATORIOS
+  VEICULOS
+  CONFIGURACOES
+  SIMULADOR_WEBHOOK
 }
 
 enum CameraDirection {
@@ -64,11 +75,31 @@ enum AlertType {
 }
 
 model Role {
-  id        String   @id @default(cuid())
-  name      RoleName @unique
-  users     User[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String?
+  isActive    Boolean          @default(true)
+  isSystem    Boolean          @default(false)
+  users       User[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model RolePermission {
+  id            String           @id @default(cuid())
+  roleId         String
+  role           Role             @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  screen         PermissionScreen
+  canView        Boolean          @default(true)
+  canCreate      Boolean          @default(false)
+  canEdit        Boolean          @default(false)
+  canDeactivate  Boolean          @default(false)
+  canExport      Boolean          @default(false)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([roleId, screen])
 }
 
 model User {

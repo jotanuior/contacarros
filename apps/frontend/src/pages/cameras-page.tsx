@@ -5,8 +5,10 @@ import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 
 export function CamerasPage() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const { canAccess } = useAuth();
+  const canCreate = canAccess('CAMERAS', 'create');
+  const canEdit = canAccess('CAMERAS', 'edit');
+  const canDeactivate = canAccess('CAMERAS', 'deactivate');
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export function CamerasPage() {
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Câmeras</h1>
 
-      {isAdmin && (
+      {(canCreate || canEdit) && (
         <Card className="grid gap-2 md:grid-cols-5">
           <Input placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} />
           <Input placeholder="Código" value={code} onChange={(e) => setCode(e.target.value)} />
@@ -71,7 +73,7 @@ export function CamerasPage() {
             <option value="false">Inativa</option>
           </Select>
           <div className="flex gap-2">
-            <Button onClick={() => saveMutation.mutate()}>{editingId ? 'Salvar' : 'Criar'}</Button>
+            <Button disabled={editingId ? !canEdit : !canCreate} onClick={() => saveMutation.mutate()}>{editingId ? 'Salvar' : 'Criar'}</Button>
             {editingId && (
               <Button
                 className="bg-slate-500 hover:bg-slate-600"
@@ -98,7 +100,7 @@ export function CamerasPage() {
               <th>Código</th>
               <th>Local</th>
               <th>Ativo</th>
-              {isAdmin && <th>Ações</th>}
+              {(canEdit || canDeactivate) && <th>Ações</th>}
             </tr>
           </thead>
           <tbody>
@@ -108,30 +110,34 @@ export function CamerasPage() {
                 <td>{c.code}</td>
                 <td>{c.location?.name}</td>
                 <td>{c.active ? 'Sim' : 'Não'}</td>
-                {isAdmin && (
+                {(canEdit || canDeactivate) && (
                   <td className="flex gap-2 py-2">
-                    <Button
-                      className="h-8 bg-slate-700 px-2 text-xs hover:bg-slate-600"
-                      onClick={() => {
-                        setEditingId(c.id);
-                        setName(c.name ?? '');
-                        setCode(c.code ?? '');
-                        setLocationId(c.locationId ?? '');
-                        setActive(Boolean(c.active));
-                      }}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      className="h-8 bg-slate-500 px-2 text-xs hover:bg-slate-600"
-                      onClick={() => {
-                        if (window.confirm('Deseja desativar esta câmera?')) {
-                          deleteMutation.mutate(c.id);
-                        }
-                      }}
-                    >
-                      Excluir
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        className="h-8 bg-slate-700 px-2 text-xs hover:bg-slate-600"
+                        onClick={() => {
+                          setEditingId(c.id);
+                          setName(c.name ?? '');
+                          setCode(c.code ?? '');
+                          setLocationId(c.locationId ?? '');
+                          setActive(Boolean(c.active));
+                        }}
+                      >
+                        Editar
+                      </Button>
+                    )}
+                    {canDeactivate && (
+                      <Button
+                        className="h-8 bg-slate-500 px-2 text-xs hover:bg-slate-600"
+                        onClick={() => {
+                          if (window.confirm('Deseja desativar esta câmera?')) {
+                            deleteMutation.mutate(c.id);
+                          }
+                        }}
+                      >
+                        Excluir
+                      </Button>
+                    )}
                   </td>
                 )}
               </tr>

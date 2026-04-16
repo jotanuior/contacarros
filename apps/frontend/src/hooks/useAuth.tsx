@@ -1,18 +1,13 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
-
-type User = {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-};
+import { hasPermission, type AuthUser, type PermissionAction, type ScreenKey } from '../lib/rbac';
 
 type AuthContextType = {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
   initializing: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  canAccess: (screen: ScreenKey, action?: PermissionAction) => boolean;
+  login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
 };
 
@@ -20,9 +15,9 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [initializing, setInitializing] = useState(true);
-  const [user, setUser] = useState<User | null>(() => {
+  const [user, setUser] = useState<AuthUser | null>(() => {
     const raw = localStorage.getItem('cc_user');
-    return raw ? (JSON.parse(raw) as User) : null;
+    return raw ? (JSON.parse(raw) as AuthUser) : null;
   });
   const [loading, setLoading] = useState(false);
 
@@ -44,7 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         const response = await api.get('/auth/me');
         if (!cancelled) {
-          const nextUser = response.data as User;
+          const nextUser = response.data as AuthUser;
           setUser(nextUser);
           localStorage.setItem('cc_user', JSON.stringify(nextUser));
         }
@@ -71,9 +66,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       const response = await api.post('/auth/login', { email, password });
-      const nextUser = response.data.user as User;
+      const nextUser = response.data.user as AuthUser;
       setUser(nextUser);
       localStorage.setItem('cc_user', JSON.stringify(nextUser));
+      return nextUser;
     } finally {
       setLoading(false);
     }
@@ -85,8 +81,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('cc_user');
   };
 
+  const canAccess = (screen: ScreenKey, action: PermissionAction = 'view') => hasPermission(user, screen, action);
+
   const value = useMemo(
-    () => ({ user, loading, initializing, login, logout }),
+    () => ({ user, loading, initializing, canAccess, login, logout }),
     [user, loading, initializing],
   );
 

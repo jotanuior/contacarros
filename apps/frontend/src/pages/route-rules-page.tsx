@@ -21,8 +21,10 @@ function toRows<T>(payload: any): T[] {
 }
 
 export function RouteRulesPage() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
+  const { canAccess } = useAuth();
+  const canCreate = canAccess('REGRAS_ROTA', 'create');
+  const canEdit = canAccess('REGRAS_ROTA', 'edit');
+  const canDeactivate = canAccess('REGRAS_ROTA', 'deactivate');
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [originLocalId, setOriginLocalId] = useState('');
@@ -55,7 +57,7 @@ export function RouteRulesPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Regras de rota</h1>
-      {isAdmin && (
+      {(canCreate || canEdit) && (
         <Card className="grid gap-2 md:grid-cols-6">
           <Select value={originLocalId} onChange={(e) => setOriginLocalId(e.target.value)}>
             <option value="">Origem</option>
@@ -83,7 +85,7 @@ export function RouteRulesPage() {
             <option value="false">Inativa</option>
           </Select>
           <div className="flex gap-2">
-            <Button onClick={() => saveMutation.mutate()}>{editingId ? 'Salvar' : 'Criar'}</Button>
+            <Button disabled={editingId ? !canEdit : !canCreate} onClick={() => saveMutation.mutate()}>{editingId ? 'Salvar' : 'Criar'}</Button>
             {editingId && (
               <Button
                 className="bg-slate-500 hover:bg-slate-600"
@@ -111,7 +113,7 @@ export function RouteRulesPage() {
               <th>Resultado</th>
               <th>Severidade</th>
               <th>Ativa</th>
-              {isAdmin && <th>Ações</th>}
+              {(canEdit || canDeactivate) && <th>Ações</th>}
             </tr>
           </thead>
           <tbody>
@@ -122,31 +124,35 @@ export function RouteRulesPage() {
                 <td>{r.resultType}</td>
                 <td>{r.severity}</td>
                 <td>{r.active ? 'Sim' : 'Não'}</td>
-                {isAdmin && (
+                {(canEdit || canDeactivate) && (
                   <td className="flex gap-2 py-2">
-                    <Button
-                      className="h-8 bg-slate-700 px-2 text-xs hover:bg-slate-600"
-                      onClick={() => {
-                        setEditingId(r.id);
-                        setOriginLocalId((r as any).originLocalId ?? '');
-                        setDestinationLocalId((r as any).destinationLocalId ?? '');
-                        setResultType(r.resultType);
-                        setSeverity(r.severity);
-                        setActive(Boolean(r.active));
-                      }}
-                    >
-                      Editar
-                    </Button>
-                    <Button
-                      className="h-8 bg-slate-500 px-2 text-xs hover:bg-slate-600"
-                      onClick={() => {
-                        if (window.confirm('Deseja desativar esta regra de rota?')) {
-                          deleteMutation.mutate(r.id);
-                        }
-                      }}
-                    >
-                      Excluir
-                    </Button>
+                    {canEdit && (
+                      <Button
+                        className="h-8 bg-slate-700 px-2 text-xs hover:bg-slate-600"
+                        onClick={() => {
+                          setEditingId(r.id);
+                          setOriginLocalId((r as any).originLocalId ?? '');
+                          setDestinationLocalId((r as any).destinationLocalId ?? '');
+                          setResultType(r.resultType);
+                          setSeverity(r.severity);
+                          setActive(Boolean(r.active));
+                        }}
+                      >
+                        Editar
+                      </Button>
+                    )}
+                    {canDeactivate && (
+                      <Button
+                        className="h-8 bg-slate-500 px-2 text-xs hover:bg-slate-600"
+                        onClick={() => {
+                          if (window.confirm('Deseja desativar esta regra de rota?')) {
+                            deleteMutation.mutate(r.id);
+                          }
+                        }}
+                      >
+                        Excluir
+                      </Button>
+                    )}
                   </td>
                 )}
               </tr>

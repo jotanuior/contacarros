@@ -2,13 +2,13 @@ import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { HeavyChecksService } from './heavy-checks.service';
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
-import { Roles } from '../../common/roles.decorator';
+import { Permission } from '../../common/permissions.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 import type { JwtUser } from '../../common/current-user.decorator';
 
 @Controller('heavy-checks')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('ADMIN', 'OPERADOR', 'AUDITOR')
+@Permission('PESADOS', 'view')
 export class HeavyChecksController {
   constructor(private readonly heavyChecksService: HeavyChecksService) {}
 
@@ -28,6 +28,7 @@ export class HeavyChecksController {
   }
 
   @Post()
+  @Permission('PESADOS', 'edit')
   check(
     @Body() body: { tripId?: string; readingId?: string; vehicleId: string; subtype: string; notes?: string },
     @CurrentUser() user: JwtUser,

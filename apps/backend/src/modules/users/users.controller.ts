@@ -4,25 +4,25 @@ import { AdminChangeUserPasswordDto, CreateUserDto, UpdateUserDto } from './dto'
 import { JwtAuthGuard } from '../../common/jwt-auth.guard';
 import { RolesGuard } from '../../common/roles.guard';
 import { IpWhitelistGuard } from '../../common/ip-whitelist.guard';
-import { Roles } from '../../common/roles.decorator';
+import { Permission } from '../../common/permissions.decorator';
 import { CurrentUser } from '../../common/current-user.decorator';
 import type { JwtUser } from '../../common/current-user.decorator';
 import { PaginationDto } from '../../common/pagination.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Permission('USUARIOS', 'view')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post()
-  @Roles('ADMIN')
+  @Permission('USUARIOS', 'create')
   @UseGuards(IpWhitelistGuard)
   create(@Body() dto: CreateUserDto, @CurrentUser() user: JwtUser) {
     return this.usersService.create(dto, user.sub);
   }
 
   @Get()
-  @Roles('ADMIN', 'AUDITOR')
   findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
     const pagination: PaginationDto = {
       page: page ? Number(page) : 1,
@@ -33,21 +33,21 @@ export class UsersController {
   }
 
   @Patch(':id')
-  @Roles('ADMIN')
+  @Permission('USUARIOS', 'edit')
   @UseGuards(IpWhitelistGuard)
   update(@Param('id') id: string, @Body() dto: UpdateUserDto, @CurrentUser() user: JwtUser) {
     return this.usersService.update(id, dto, user.sub);
   }
 
   @Patch(':id/password')
-  @Roles('ADMIN')
+  @Permission('USUARIOS', 'edit')
   @UseGuards(IpWhitelistGuard)
   changePassword(@Param('id') id: string, @Body() dto: AdminChangeUserPasswordDto, @CurrentUser() user: JwtUser) {
     return this.usersService.changePasswordByAdmin(id, dto.newPassword, user.sub);
   }
 
   @Patch(':id/deactivate')
-  @Roles('ADMIN')
+  @Permission('USUARIOS', 'deactivate')
   @UseGuards(IpWhitelistGuard)
   deactivate(@Param('id') id: string, @CurrentUser() user: JwtUser) {
     return this.usersService.deactivate(id, user.sub);
